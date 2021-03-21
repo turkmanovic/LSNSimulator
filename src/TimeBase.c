@@ -79,14 +79,16 @@ double Get_CurrentTime(){
 	return CurrentTime;
 }
 void StartTime(uint32_t SimulationTime){
-	Event* CurrentEvent=ListHead;
+	Event* CurrentEvent	=	ListHead;
 	Event* TempPointer;
 	Processing = 1;
-	while(CurrentEvent!=NULL && CurrentEvent->Time <= SimulationTime){
-		if(ListHead->Time!= CurrentTime){CurrentTime = ListHead->Time;}
+	while((CurrentEvent	!=	NULL) && (CurrentEvent->Time <= SimulationTime)){
+		if(ListHead->Time != CurrentTime){
+			CurrentTime = ListHead->Time;
+		}
 		Process_Job(CurrentEvent->AssignedJob);
-		TempPointer = CurrentEvent;
-		CurrentEvent = CurrentEvent->NextEvent;
+		TempPointer 	= CurrentEvent;
+		CurrentEvent 	= CurrentEvent->NextEvent;
 		if(CurrentEvent!=NULL){
 			CurrentEvent->PreviousEvent = NULL;
 		}

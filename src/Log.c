@@ -143,9 +143,6 @@ void Print_ProcessLog(uint16_t LogID, const char AddInfo[]){
 
 void Print_DataLog(Data* DataPtr,FILE* FileToWrite,double Time){
 	char Text[30];
-	sprintf(Text,"%f",Time);
-	fprintf(FileToWrite,Text);
-	fprintf(FileToWrite,",");
 	sprintf(Text,"%d",DataPtr->BytesToProcess);
 	fprintf(FileToWrite,Text);
 	fprintf(FileToWrite,",");
@@ -183,30 +180,57 @@ void Print_DataLog(Data* DataPtr,FILE* FileToWrite,double Time){
 	sprintf(Text,"%d",DataPtr->ID);
 	fprintf(FileToWrite,Text);
 }
-void Print_NodeLog(Node* NodePtr,Data* DataPtr,double Time){
-	FILE* fp = fopen(NodePtr->LogFilename, "a");
-	Print_DataLog(DataPtr,fp,Time);
+void Print_NodeLog(Node* NodePtr,Data* DataPtr, double Time, uint8_t lpStatusFlag, uint8_t lpMode){
 	char Text[30];
-	if(NodePtr->ProcessingData == NULL || DataPtr->State == Consumed){
-		sprintf(Text,"%d",NodePtr->SizeOfWaitData);
+	FILE* fp = fopen(NodePtr->LogFilename, "a");
+	sprintf(Text,"%f",Time);
+	fprintf(fp,Text);
+	fprintf(fp,",");
+	if(NodePtr->operationalMode == NODE_OPMODE_FULLOPERATONAL){
+		sprintf(Text,"%C",'A');
 	}
 	else{
-		sprintf(Text,"%d",NodePtr->SizeOfWaitData+NodePtr->ProcessingData->BytesToProcess);
+		sprintf(Text,"%s","LP");
 	}
-	fprintf(fp,",");
 	fprintf(fp,Text);
 	fprintf(fp,",");
-	sprintf(Text,"%d",NodePtr->SizeOfWaitData);
-	fprintf(fp,Text);
-	fprintf(fp,",");
-	sprintf(Text,"%d",NodePtr->ProcessedDataBytesCount);
-	fprintf(fp,Text);
-	fprintf(fp,",");
-	sprintf(Text,"%d",NodePtr->ProcessedOverheadBytesCount);
-	fprintf(fp,Text);
-	fprintf(fp,",");
-	sprintf(Text,"%lf",NodePtr->FullConsumption);
-	fprintf(fp,Text);
-	fprintf(fp,"\n");
+	if(lpStatusFlag == 0){
+		Print_DataLog(DataPtr,fp,Time);
+		if(NodePtr->ProcessingData == NULL || DataPtr->State == Consumed){
+			sprintf(Text,"%d",NodePtr->SizeOfWaitData);
+		}
+		else{
+			sprintf(Text,"%d",NodePtr->SizeOfWaitData+NodePtr->ProcessingData->BytesToProcess);
+		}
+		fprintf(fp,",");
+		fprintf(fp,Text);
+		fprintf(fp,",");
+		sprintf(Text,"%d",NodePtr->SizeOfWaitData);
+		fprintf(fp,Text);
+		fprintf(fp,",");
+		sprintf(Text,"%d",NodePtr->ProcessedDataBytesCount);
+		fprintf(fp,Text);
+		fprintf(fp,",");
+		sprintf(Text,"%d",NodePtr->ProcessedOverheadBytesCount);
+		fprintf(fp,Text);
+		fprintf(fp,",");
+		sprintf(Text,"%lf",NodePtr->FullConsumption);
+		fprintf(fp,Text);
+		fprintf(fp,"\n");
+	}
+	else{
+		if(lpMode == 1){
+			sprintf(Text,"%s","ENTER");
+		}
+		else{
+			sprintf(Text,"%s","EXIT");
+		}
+		fprintf(fp,Text);
+		fprintf(fp,",");
+		sprintf(Text,"%lf",NodePtr->FullConsumption);
+		fprintf(fp,Text);
+		fprintf(fp,"\n");
+
+	}
 	fclose(fp);
 }

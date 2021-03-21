@@ -14,12 +14,12 @@ FILE *ConfigFile;
 
 uint8_t CreateNodes(){
 	uint32_t TempId = 0, AggregationLevel,ReturnSize,MTUProcessOverhead;
-	double		TempProcessTime, Consumption;
+	double		TempProcessTime, lpConsumption, activeConsumption;
 	char TempChar;
 	while(1){
-		fscanf(ConfigFile, "%d%lf%d%d%d%lf", &TempId, &TempProcessTime, &AggregationLevel, &ReturnSize, &MTUProcessOverhead, &Consumption);
+		fscanf(ConfigFile, "%d%lf%d%d%d%lf%lf", &TempId, &TempProcessTime, &AggregationLevel, &ReturnSize, &MTUProcessOverhead, &activeConsumption, &lpConsumption);
 		if(TempId == 0) break;
-		if(Create_Node(TempId, TempProcessTime,AggregationLevel,ReturnSize,MTUProcessOverhead, Consumption)==NULL){
+		if(Create_Node(TempId, TempProcessTime,AggregationLevel,ReturnSize,MTUProcessOverhead, lpConsumption,activeConsumption)==NULL){
 			return 1;
 		}
 		do{

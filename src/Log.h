@@ -60,7 +60,11 @@ void Print_ProcessLog(uint16_t LogID, const char AddInfo[]);
 
 
 uint8_t Init_DataLog();
-void Print_NodeLog(Node* NodePtr,Data* DataPtr,double Time);
+//lpStatusFlag == 0 -> not lp status
+//lpStatusFlag == 1 -> lp status
+//lpMode	== 1 -> enter to LP mode
+//lpMode	== 0 -> exit from LP mode
+void Print_NodeLog(Node* NodePtr,Data* DataPtr,double Time, uint8_t lpStatusFlag, uint8_t lpMode);
 
 
 

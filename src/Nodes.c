@@ -46,7 +46,7 @@ void 			Init_Node(){
 	NodesNumber		= 0;
 	NodesId			= malloc(1*sizeof(uint32_t));
 }
-Node*			Create_Node(uint32_t NodeId, double ProcessTime, uint32_t AgregationLevel,uint32_t ReturnSize,uint32_t MTUProcessOverhead, double Consumption){
+Node*			Create_Node(uint32_t NodeId, double ProcessTime, uint32_t AgregationLevel,uint32_t ReturnSize,uint32_t MTUProcessOverhead, double lpConsumption, double activeConsumption){
 	if(NodeId < 1){
 		sprintf(LogText, "%d", NodeId);
 		Print_ErrorLog(ERROR_NODE_1, LogText);
@@ -69,17 +69,20 @@ Node*			Create_Node(uint32_t NodeId, double ProcessTime, uint32_t AgregationLeve
 	NodesList[NodesNumber-1]->ID = NodeId;
 	NodesList[NodesNumber-1]->ProcessTime = ProcessTime;
 	NodesList[NodesNumber-1]->Processing = False;
-	NodesList[NodesNumber-1]->Consumption = Consumption;
+	NodesList[NodesNumber-1]->lpConsumption = lpConsumption;
+	NodesList[NodesNumber-1]->activeConsumption = activeConsumption;
 	NodesList[NodesNumber-1]->FullConsumption = 0;
 	NodesList[NodesNumber-1]->ProcessingData = NULL;
 	NodesList[NodesNumber-1]->WaitData = malloc(sizeof(Data*));
 	NodesList[NodesNumber-1]->NoOfWaitData = 0;
 	NodesList[NodesNumber-1]->SizeOfWaitData = 0;
+	NodesList[NodesNumber-1]->lpEnterTime = 0;
 	NodesList[NodesNumber-1]->MTUProcessOverhead = MTUProcessOverhead;
 	NodesList[NodesNumber-1]->ProcessedDataBytesCount = 0;
 	NodesList[NodesNumber-1]->AggregationLevel = AgregationLevel;
 	NodesList[NodesNumber-1]->ProcessedOverheadBytesCount = 0;
 	NodesList[NodesNumber-1]->Type = Consumer;
+	NodesList[NodesNumber-1]->operationalMode = NODE_OPMODE_LOWPOWER;
 	NodesList[NodesNumber-1]->DataBufferSize = ReturnSize;
 	NodesList[NodesNumber-1]->AdjacentNodes = malloc(sizeof(Link*));
 	NodesList[NodesNumber-1]->AdjacentNodes[0] = NULL;
@@ -144,10 +147,10 @@ uint8_t			Link_Node(uint32_t Node1Id, uint32_t Node2Id,uint32_t LinkID){
 void    		Make_Producer_Node(uint32_t NodeId, uint32_t Rate, Boolean Periodic,uint32_t Size, uint32_t* PathLine,uint32_t DestinationId,Boolean RelativeFlag,uint32_t ProtocolID){
 	Node* NodePrt = Get_Node(NodeId);
 	NodePrt->Type = Producer;
-	DataPath* CreatedPath 	= Create_Path_Data(DestinationId, PathLine);
-	Data* CreatedData 		= Create_Data(Size,CreatedPath, ProtocolID);
+	DataPath* CreatedPath 	= Create_Path_Data(DestinationId, 	PathLine);
+	Data* CreatedData 		= Create_Data(Size,	CreatedPath, 	ProtocolID);
 	Job* CreatedJob 		= Create_Job(NodePrt, CreatedData, Periodic, Rate, Create);
-    double CurrentTime 	= Get_CurrentTime();
+    double CurrentTime 		= Get_CurrentTime();
     if(RelativeFlag == False){
     	Event* CreatedEvent 	= Create_Event(CreatedJob, CurrentTime,0);
     	Add_Event(CreatedEvent);
@@ -158,18 +161,16 @@ void    		Make_Producer_Node(uint32_t NodeId, uint32_t Rate, Boolean Periodic,ui
     }
 }
 void 			Receive_DataOn_Node(Node* NodePtr, Data* DataPtr){
+	//Remember to data on which node it is processing
 	DataPtr->Path->CurrentID = NodePtr->ID;
 	double CurrentTime 	= Get_CurrentTime();
-	if(DataPtr->State == Sent){
-		NodePtr->FullConsumption += DataPtr->EnergyToReceiveData;
-	}
 	if(DataPtr->State == Unitialized){
 		DataPtr->State = Created;
 		if(DataPtr->Type == Request)DataPtr->CreatedTime = Get_CurrentTime();
 	}
 	if(NodePtr->Processing == True){
 		Add_DataToWaitingList_Node(NodePtr, DataPtr);
-        Print_NodeLog(NodePtr, DataPtr, CurrentTime);
+        Print_NodeLog(NodePtr, DataPtr, CurrentTime, 0, 0);
 	}
 	else{
    	    double ProcessOverheadTime = 0;
@@ -179,6 +180,11 @@ void 			Receive_DataOn_Node(Node* NodePtr, Data* DataPtr){
 		if(DataPtr->State != Created){
 				DataPtr->State = Received;
 	    }
+		if(NodePtr->operationalMode == NODE_OPMODE_LOWPOWER){
+			NodePtr->FullConsumption+= (CurrentTime - NodePtr->lpEnterTime)*NodePtr->lpConsumption;
+	        Print_NodeLog(NodePtr, DataPtr, CurrentTime, 1, 0);
+			NodePtr->operationalMode = NODE_OPMODE_FULLOPERATONAL;
+		}
 		if(NextLink != 0){
    	    	int NumberOfPackets = ceil((((double)DataPtr->Size)/((double)NodePtr->AggregationLevel))/((double)NextLink->AssignedLink->MTUSize));
    	    	DataPtr->Overhead = NumberOfPackets*DataPtr->AssignedProtocol->Overhead;
@@ -187,18 +193,17 @@ void 			Receive_DataOn_Node(Node* NodePtr, Data* DataPtr){
         NodePtr->ProcessedDataBytesCount+= DataPtr->Size;
    	    double TimeToProcessArrivedData = (double)DataPtr->BytesToProcess/NodePtr->ProcessTime;
 		double TimeToProcessPackets 	= ProcessOverheadTime;
-		double ProcessTime 				= TimeToProcessArrivedData	+	TimeToProcessPackets;
-		DataPtr->EnergyToProcessData	= ProcessTime*NodePtr->Consumption;
+		double ProcessTime 				= TimeToProcessArrivedData + TimeToProcessPackets;
 
-		Print_NodeLog(NodePtr, DataPtr,CurrentTime);
+		Print_NodeLog(NodePtr, DataPtr, CurrentTime, 0, 0);
 		NodePtr->Processing     		= True;
 		Job* CreatedJob  				= Create_Job(NodePtr, DataPtr, True, CurrentTime+ProcessTime, Process);
-		Event* CreatedEvent 			= Create_Event(CreatedJob,CurrentTime+ProcessTime,1);
+		Event* CreatedEvent 			= Create_Event(CreatedJob, CurrentTime+ProcessTime, 1);
+
 		Add_Event(CreatedEvent);
 	}
 }
 void 			Process_DataOn_Node(Node* NodePtr){
-
      if(NodePtr->ProcessingData == NULL){
     	 while(1);
      }
@@ -212,7 +217,7 @@ void 			Process_DataOn_Node(Node* NodePtr){
     	 }
     	 if(Create_Response_Data(NodePtr->ProcessingData,NodePtr->DataBufferSize)!=0){
         	 NodePtr->ProcessingData->ElapsedResponseTime = Get_CurrentTime() - NodePtr->ProcessingData->CreatedTime;
-        	 Print_NodeLog(NodePtr,NodePtr->ProcessingData, CurrentTime);
+        	 Print_NodeLog(NodePtr,NodePtr->ProcessingData, CurrentTime, 0, 0);
 			 free( NodePtr->ProcessingData);
 			 NodePtr->ProcessingData = NULL;
     	 }
@@ -230,8 +235,7 @@ void 			Process_DataOn_Node(Node* NodePtr){
     	 }
      }
      else{
-    	 NodePtr->FullConsumption += NodePtr->ProcessingData->EnergyToProcessData;
-    	 Print_NodeLog(NodePtr,NodePtr->ProcessingData, CurrentTime);
+    	 Print_NodeLog(NodePtr,NodePtr->ProcessingData, CurrentTime, 0, 0);
 
     	 Connection* NextLink = Get_NextLink_Node(NodePtr);
     	 Node* NextNodePtr = Get_Node(NextLink->DestinationNodeId);
@@ -256,16 +260,22 @@ void 			Send_DataFrom_Node(Node* NodePtr){
 	if( NodePtr->ProcessingData->State == Processed){
 		double CurrentTime = Get_CurrentTime();
 		Data* TempDataPtr = NodePtr->ProcessingData;
-		NodePtr->FullConsumption += NodePtr->ProcessingData->EnergyToTransmitData;
 		NodePtr->ProcessingData->State = Sent;
 		NodePtr->ProcessingData = NULL;
 		NodePtr->Processing = False;
-		Print_NodeLog(NodePtr,TempDataPtr, CurrentTime);
+		Print_NodeLog(NodePtr,TempDataPtr, CurrentTime, 0, 0);
+		//check is there more data to process
 		Data* NextDataToProcess = Get_NextWaitingData_Node(NodePtr);
 		if(NextDataToProcess!=NULL){
-			Job* CreatedJob = Create_Job(NodePtr, NextDataToProcess,False,CurrentTime,Receive);
-			Event* CreatedEvent = Create_Event(CreatedJob, CurrentTime,0);
+			Job* 	CreatedJob 		= Create_Job(NodePtr, NextDataToProcess,False,CurrentTime,Receive);
+			Event* 	CreatedEvent 	= Create_Event(CreatedJob, CurrentTime,0);
 			Add_Event(CreatedEvent);
+		}
+		else{
+			//go to low power mode if there is no more data to process
+			NodePtr->operationalMode = NODE_OPMODE_LOWPOWER;
+			NodePtr->lpEnterTime	=	CurrentTime;
+			Print_NodeLog(NodePtr,TempDataPtr, CurrentTime, 1, 1);
 		}
 	}
 }

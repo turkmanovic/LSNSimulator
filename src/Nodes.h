@@ -26,6 +26,11 @@ typedef enum{
 	Consumer
 }NodeType;
 
+typedef enum{
+	NODE_OPMODE_FULLOPERATONAL,
+	NODE_OPMODE_LOWPOWER,
+}NODE_OperationalMode_t;
+
 
 typedef struct {
 	uint32_t 		ID;								/*!< Unique Node value */
@@ -40,12 +45,15 @@ typedef struct {
 	uint32_t 		SizeOfWaitData; 				/*!< Quantity of data which wait to be processed  */
 	uint32_t 		ProcessedDataBytesCount; 		/*!< Quantity of data which are processed on node */
 	uint32_t 		ProcessedOverheadBytesCount; 	/*!< Quantity of data overhead which are processed on node */
-	double			Consumption;					/*!< Consumption of node while processing in mA */
+	double			lpConsumption;					/*!< Consumption of node while it is in Low power mode(in mA) */
+	double			activeConsumption;					/*!< Consumption of node while it is active mode(in mA)*/
 	double 			FullConsumption;				/*!< Full dissipation on node */
+	double			lpEnterTime;					/*!< Time stamp when node enter in LP mode*/
 	Connection** 	AdjacentNodes; 					/*!< List of all adjacent connection */
 	uint32_t 		AggregationLevel; 				/*!< Aggregation Level */
 	char			LogFilename[NODE_FILENAME_SIZE];
 	FILE 			*NodeLogFile;  					/*!< Pointer to node file */
+	NODE_OperationalMode_t	operationalMode;		/*!< Current active node operational mode*/
 }Node;
 
 
@@ -60,7 +68,7 @@ void 	Init_Node();
 * @return DataPath 		- DataPath is successfully created
 * @return NULL 			- DataPath creation fault
 */
-Node*	Create_Node(uint32_t NodeId, double ProcessTime, uint32_t AgregationLevel, uint32_t ReturnSize,uint32_t MTUProcessOverhead, double Consumption);
+Node*	Create_Node(uint32_t NodeId, double ProcessTime, uint32_t AgregationLevel, uint32_t ReturnSize,uint32_t MTUProcessOverhead, double lpConsumption, double activeConsumption);
 Node*   Get_Node(uint32_t NodeId);
 uint8_t	Link_Node(uint32_t Node1Id, uint32_t Node2Id,uint32_t LinkID);
 
@@ -68,6 +76,9 @@ void    Make_Producer_Node(uint32_t NodeId, uint32_t Rate, Boolean Periodic,uint
 void 	Receive_DataOn_Node(Node* NodePtr, Data* DataPtr);
 void 	Process_DataOn_Node(Node* NodePtr);
 void 	Send_DataFrom_Node(Node* NodePtr);
+
+
+
 
 Connection*   Get_NextLink_Node(Node* NodePtr);
 

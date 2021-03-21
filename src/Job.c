@@ -19,13 +19,13 @@ void Init_Job(){
 }
 
 Job* Create_Job(Node* AssignedNodePtr, Data* AssignedDataPtr, Boolean Periodic, uint32_t Rate,JobType Type){
-	Job* CreatedJob = malloc(sizeof(Job));
-	CreatedJob->ID = JobIdCounter++;
-	CreatedJob->Period = Rate;
-	CreatedJob->Periodic = Periodic;
-	CreatedJob->ProcessedNode = AssignedNodePtr;
-	CreatedJob->ProcessedData = AssignedDataPtr;
-	CreatedJob->Type = Type;
+	Job* CreatedJob 			= malloc(sizeof(Job));
+	CreatedJob->ID 				= JobIdCounter++;
+	CreatedJob->Period 			= Rate;
+	CreatedJob->Periodic 		= Periodic;
+	CreatedJob->ProcessedNode 	= AssignedNodePtr;
+	CreatedJob->ProcessedData 	= AssignedDataPtr;
+	CreatedJob->Type 			= Type;
 	return CreatedJob;
 }
 
