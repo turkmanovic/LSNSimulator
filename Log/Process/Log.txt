@@ -1,0 +1,23 @@
+Protocol " ID: 1, Name: 70B_Overhead " is created 
+All protocols are created 
+
+
+Link " ID: 1, Name: L1_0_5 " is created 
+Link " ID: 2, Name: L1_1_0 " is created 
+All links are created 
+
+
+Node 1 Created
+Node 2 Created
+Node 3 Created
+Node 4 Created
+Nodes are successfully created - 
+
+
+Nodes 1 and 3 via Link 1 are linked
+Nodes 2 and 3 via Link 1 are linked
+Nodes 3 and 1 via Link 1 are linked
+Nodes 3 and 2 via Link 1 are linked
+Nodes 3 and 4 via Link 2 are linked
+Nodes 4 and 3 via Link 2 are linked
+Node's network are created - 
