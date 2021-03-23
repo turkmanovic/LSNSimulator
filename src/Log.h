@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "Global.h"
-#include "Nodes.h"
+#include "nodes.h"
 
 
 //This error define that there is two Nodes with same ID
@@ -52,11 +52,11 @@
 //This code indicate that all links are successfully created
 #define LOG_LINK_1   				1302
 
-uint8_t Init_ErrorLog();
-void Print_ErrorLog(uint16_t ErrorNumber,const char AddInfo[]);
+uint8_t LOG_ERROR_Init();
+void 	LOG_ERROR_Print(uint16_t ErrorNumber,const char AddInfo[]);
 
 uint8_t Init_ProcessLog();
-void Print_ProcessLog(uint16_t LogID, const char AddInfo[]);
+void 	Print_ProcessLog(uint16_t LogID, const char AddInfo[]);
 
 
 uint8_t Init_DataLog();
@@ -64,7 +64,7 @@ uint8_t Init_DataLog();
 //lpStatusFlag == 1 -> lp status
 //lpMode	== 1 -> enter to LP mode
 //lpMode	== 0 -> exit from LP mode
-void Print_NodeLog(Node* NodePtr,Data* DataPtr,double Time, uint8_t lpStatusFlag, uint8_t lpMode);
+void 	Print_NodeLog(node_t* NodePtr,data_t* DataPtr,double Time, uint8_t lpStatusFlag, uint8_t lpMode);
 
 
 

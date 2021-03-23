@@ -7,27 +7,28 @@
  *	@date   August 2019.
  * */
 
-#include "TimeBase.h"
-#include "Job.h"
+#include "tbase.h"
+
+#include "job.h"
 
 
 
-Event* ListHead;
-uint32_t EventIdCounter;
-double CurrentTime;
-uint32_t Processing;
+event_t* 	prvTBASE_LIST_HEAD;
+uint32_t 	prvTBASE_EVENT_ID_COUNTER;
+uint32_t 	prvTBASE_PROCESSING;
+double 		prvTBASE_TIME;
 
-void Init_TimeBase(){
-	ListHead = NULL;
-	EventIdCounter = 0;
-	CurrentTime = 0;
-	Processing = 0;
+void TBASE_Init(){
+	prvTBASE_LIST_HEAD = NULL;
+	prvTBASE_EVENT_ID_COUNTER = 0;
+	prvTBASE_TIME = 0;
+	prvTBASE_PROCESSING = 0;
 }
 
-Event* Create_Event(Job* JobToProcess, double Time,uint16_t Priority){
-	Event* TempEvent = malloc(sizeof(Event));
+event_t* TBASE_CreateEvent(job_t* JobToProcess, double Time,uint16_t Priority){
+	event_t* TempEvent = malloc(sizeof(event_t));
 	TempEvent->AssignedJob = JobToProcess;
-	TempEvent->ID = EventIdCounter++;
+	TempEvent->ID = prvTBASE_EVENT_ID_COUNTER++;
 	TempEvent->Priority = Priority;
 	TempEvent->Time = Time;
 	TempEvent->NextEvent = NULL;
@@ -35,16 +36,16 @@ Event* Create_Event(Job* JobToProcess, double Time,uint16_t Priority){
 	return TempEvent;
 }
 
-uint8_t Add_Event(Event* EventToProcess){
-	Event* CurrentListElement = ListHead;
-	if(ListHead == NULL){
-		ListHead = EventToProcess;
+uint8_t TBASE_AddEvent(event_t* EventToProcess){
+	event_t* CurrentListElement = prvTBASE_LIST_HEAD;
+	if(prvTBASE_LIST_HEAD == NULL){
+		prvTBASE_LIST_HEAD = EventToProcess;
 	}
 	else{
 		while( CurrentListElement!= NULL){
 			if(((CurrentListElement->Time == EventToProcess->Time) && (CurrentListElement->Priority <= EventToProcess->Priority))|| (CurrentListElement->Time > EventToProcess->Time)){
 				if(CurrentListElement->PreviousEvent == NULL){
-					if(Processing == 1){
+					if(prvTBASE_PROCESSING == 1){
 						CurrentListElement->NextEvent->PreviousEvent = EventToProcess;
 						EventToProcess->NextEvent = CurrentListElement->NextEvent;
 						EventToProcess->PreviousEvent = CurrentListElement;
@@ -53,7 +54,7 @@ uint8_t Add_Event(Event* EventToProcess){
 					else{
 						CurrentListElement->PreviousEvent = EventToProcess;
 						EventToProcess->NextEvent = CurrentListElement;
-						ListHead = EventToProcess;
+						prvTBASE_LIST_HEAD = EventToProcess;
 					}
 				}
 				else{
@@ -75,24 +76,24 @@ uint8_t Add_Event(Event* EventToProcess){
 	return 1;
 
 }
-double Get_CurrentTime(){
-	return CurrentTime;
+double TBASE_GetTime(){
+	return prvTBASE_TIME;
 }
-void StartTime(uint32_t SimulationTime){
-	Event* CurrentEvent	=	ListHead;
-	Event* TempPointer;
-	Processing = 1;
+void TBASE_Start(uint32_t SimulationTime){
+	event_t* CurrentEvent	=	prvTBASE_LIST_HEAD;
+	event_t* TempPointer;
+	prvTBASE_PROCESSING = 1;
 	while((CurrentEvent	!=	NULL) && (CurrentEvent->Time <= SimulationTime)){
-		if(ListHead->Time != CurrentTime){
-			CurrentTime = ListHead->Time;
+		if(prvTBASE_LIST_HEAD->Time != prvTBASE_TIME){
+			prvTBASE_TIME = prvTBASE_LIST_HEAD->Time;
 		}
-		Process_Job(CurrentEvent->AssignedJob);
+		JOB_Process(CurrentEvent->AssignedJob);
 		TempPointer 	= CurrentEvent;
 		CurrentEvent 	= CurrentEvent->NextEvent;
 		if(CurrentEvent!=NULL){
 			CurrentEvent->PreviousEvent = NULL;
 		}
-		ListHead = CurrentEvent;
+		prvTBASE_LIST_HEAD = CurrentEvent;
 		free(TempPointer);
 	}
 

@@ -10,24 +10,24 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "Nodes.h"
-#include "TimeBase.h"
 #include "Log.h"
-#include "Topology.h"
+#include "nodes.h"
+#include "tbase.h"
+#include "topology.h"
 
 int main(void) {
-	puts("!!!Hello World!!!"); /* prints !!!Hello World!!! */
+	puts("Simulator v0.1"); /* prints !!!Hello World!!! */
 
-	Init_ErrorLog();
+	LOG_ERROR_Init();
 	Init_ProcessLog();
 	Init_DataLog();
-	Init_Node();
-	Init_Data();
-	Init_TimeBase();
-	Init_Links();
-	Init_Topology();
+	NODE_Init();
+	DATA_Init();
+	TBASE_Init();
+	LINK_Init();
+	TPLG_Init();
 	puts("Simulation start");
-    StartTime(10000);
+    TBASE_Start(10000);
     puts("Simulation end");
     while(1);
 	return 0;

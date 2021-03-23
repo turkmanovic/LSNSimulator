@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 
-uint8_t Init_Topology();
+uint8_t TPLG_Init();
 
 
 #endif /* TOPOLOGY_H_ */

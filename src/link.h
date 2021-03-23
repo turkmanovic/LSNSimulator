@@ -5,8 +5,8 @@
  *      Author: Puma
  */
 
-#ifndef LINKS_H_
-#define LINKS_H_
+#ifndef LINK_H_
+#define LINK_H_
 
 #include <stdint.h>
 
@@ -22,19 +22,19 @@ typedef struct {
 	double		ReceiveConsumption;	/*!< Current needed to receive data*/
 	double		TransmitConsumption;	/*!< Current needed to send data*/
 	char		LinkName[30];		/*!< Link name */
-}Link;
+}link_t;
 typedef struct {
 	uint32_t    ID;					/*!< Unique connection value */
 	uint32_t 	DestinationNodeId;	/*!< ID value of destination Node */
 	uint32_t 	SourceNodeId;		/*!< ID value of current node */
-	Link*		AssignedLink;		/*!< Link info */
-}Connection;
+	link_t*		AssignedLink;		/*!< Link info */
+}connection_t;
 
-uint8_t 		Init_Links();
-Connection*    	Create_Connection(uint32_t DestinationNodeId, uint32_t SourceNodeId, uint32_t LinkId);
-Link*   		Get_Link(uint32_t LinkID);
-double          Get_LinkSpeed(Connection* ConnectionPtr);
+uint8_t 			LINK_Init();
+connection_t*    	LINK_CreateConnection(uint32_t DestinationNodeId, uint32_t SourceNodeId, uint32_t LinkId);
+link_t*   			LINK_GetByID(uint32_t LinkID);
+double          	LINK_GetSpeed(connection_t* ConnectionPtr);
 
 
 
-#endif /* LINKS_H_ */
+#endif /* LINK_H_ */

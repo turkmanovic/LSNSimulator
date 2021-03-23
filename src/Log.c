@@ -14,10 +14,10 @@ FILE *LogFile;
 FILE *DataElapsedTimeFile;
 
 
-uint8_t Init_ErrorLog(){
+uint8_t LOG_ERROR_Init(){
 	ErrorFile = fopen(ErrorLog_FileName,"w");
 	if(ErrorFile == NULL){
-		Print_ErrorLog(ERROR_FILE_0,ErrorLog_FileName);
+		LOG_ERROR_Print(ERROR_FILE_0,ErrorLog_FileName);
 		return 1;
 	}
 	return 0;
@@ -26,7 +26,7 @@ uint8_t Init_ErrorLog(){
 uint8_t Init_DataLog(){
 	DataElapsedTimeFile = fopen(ElapsedTimeLog_FileName,"w");
 	if(DataElapsedTimeFile == NULL){
-		Print_ErrorLog(ERROR_FILE_0,ElapsedTimeLog_FileName);
+		LOG_ERROR_Print(ERROR_FILE_0,ElapsedTimeLog_FileName);
 		return 1;
 	}
 	return 0;
@@ -35,12 +35,12 @@ uint8_t Init_DataLog(){
 uint8_t Init_ProcessLog(){
 	LogFile = fopen(ProcessLog_FileName,"w");
 	if(LogFile == NULL){
-		Print_ErrorLog(ERROR_FILE_0,ProcessLog_FileName);
+		LOG_ERROR_Print(ERROR_FILE_0,ProcessLog_FileName);
 		return 1;
 	}
 	return 0;
 }
-void Print_ErrorLog(uint16_t ErrorNumber, const char AddInfo[]){
+void LOG_ERROR_Print(uint16_t ErrorNumber, const char AddInfo[]){
 	switch(ErrorNumber){
 		case ERROR_NODE_0:
 			fprintf(ErrorFile,"Two nodes with same ID (");
@@ -141,28 +141,28 @@ void Print_ProcessLog(uint16_t LogID, const char AddInfo[]){
 
 
 
-void Print_DataLog(Data* DataPtr,FILE* FileToWrite,double Time){
+void Print_DataLog(data_t* DataPtr,FILE* FileToWrite,double Time){
 	char Text[30];
 	sprintf(Text,"%d",DataPtr->BytesToProcess);
 	fprintf(FileToWrite,Text);
 	fprintf(FileToWrite,",");
 	switch(DataPtr->State){
-	case Created:
+	case DATA_STATE_CREATED:
 		fprintf(FileToWrite,"C");
 		break;
-	case Wait:
+	case DATA_STATE_WAIT:
 		fprintf(FileToWrite,"W");
 		break;
-	case Received:
+	case DATA_STATE_RECEIVED:
 		fprintf(FileToWrite,"R");
 		break;
-	case Processed:
+	case DATA_STATE_PROCESSED:
 		fprintf(FileToWrite,"P");
 		break;
-	case Consumed:
+	case DATA_STATE_CONSUMED:
 		fprintf(FileToWrite,"M");
 		if(DataPtr->AssignedProtocol->Response == True){
-			if(DataPtr->Type == Response){
+			if(DataPtr->Type == DATA_TYPE_RESPONSE){
 				fprintf(DataElapsedTimeFile,"%d,%lf,%lf,%lf\n",DataPtr->ID,DataPtr->CreatedTime,DataPtr->ElapsedRequestTime, DataPtr->ElapsedResponseTime);
 			}
 		}
@@ -170,17 +170,17 @@ void Print_DataLog(Data* DataPtr,FILE* FileToWrite,double Time){
 			fprintf(DataElapsedTimeFile,"%d,%lf,%lf,%lf\n",DataPtr->ID,DataPtr->CreatedTime, DataPtr->ElapsedRequestTime, 0.0);
 		}
 		break;
-	case Sent:
+	case DATA_STATE_SENT:
 		fprintf(FileToWrite,"S");
 		break;
 	}
-	if(DataPtr->Type == Request)fprintf(FileToWrite,"_Req");
-	if(DataPtr->Type == Response)fprintf(FileToWrite,"_Res");
+	if(DataPtr->Type == DATA_TYPE_REQUEST)fprintf(FileToWrite,"_Req");
+	if(DataPtr->Type == DATA_TYPE_RESPONSE)fprintf(FileToWrite,"_Res");
 	fprintf(FileToWrite,",");
 	sprintf(Text,"%d",DataPtr->ID);
 	fprintf(FileToWrite,Text);
 }
-void Print_NodeLog(Node* NodePtr,Data* DataPtr, double Time, uint8_t lpStatusFlag, uint8_t lpMode){
+void Print_NodeLog(node_t* NodePtr,data_t* DataPtr, double Time, uint8_t lpStatusFlag, uint8_t lpMode){
 	char Text[30];
 	FILE* fp = fopen(NodePtr->LogFilename, "a");
 	sprintf(Text,"%f",Time);
@@ -196,7 +196,7 @@ void Print_NodeLog(Node* NodePtr,Data* DataPtr, double Time, uint8_t lpStatusFla
 	fprintf(fp,",");
 	if(lpStatusFlag == 0){
 		Print_DataLog(DataPtr,fp,Time);
-		if(NodePtr->ProcessingData == NULL || DataPtr->State == Consumed){
+		if(NodePtr->ProcessingData == NULL || DataPtr->State == DATA_STATE_CONSUMED){
 			sprintf(Text,"%d",NodePtr->SizeOfWaitData);
 		}
 		else{

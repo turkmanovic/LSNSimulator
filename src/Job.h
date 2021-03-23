@@ -16,28 +16,28 @@
 
 #include <stdint.h>
 
-#include "Nodes.h"
+#include "nodes.h"
 
 
-typedef enum JobType{
-	Create,
-	Process,
-	Send,
-	Receive
-}JobType;
+typedef enum{
+	JOB_TYPE_CREATE,
+	JOB_TYPE_PROCESS,
+	JOB_TYPE_SEND,
+	JOB_TYPE_RECEIVE
+}job_type_t;
 
 typedef struct Job{
 	uint32_t ID;/*!<Unique ID assigned at Job creation */
 	Boolean Periodic;/*!< Indicate if job is periodic */
 	uint32_t Period;/*!< If Job is periodic, this value represent Job rate, otherwise this
 	 	 	 	 	 	 parameter is not important*/
-    Data*  ProcessedData;/*!< Data assigned to Job */
-    Node*  ProcessedNode;/*!< Pointer to Node over which action must be taken */
-    JobType Type;/*!< Type of Job */
-}Job;
+    data_t*  ProcessedData;/*!< Data assigned to Job */
+    node_t*  ProcessedNode;/*!< Pointer to Node over which action must be taken */
+    job_type_t Type;/*!< Type of Job */
+}job_t;
 
-void 	Init_Job();
-Job* 	Create_Job(Node* AssignedNodePtr, Data* AssignedDataPtr, Boolean Periodic, uint32_t Rate,JobType Type);
-uint8_t Process_Job(Job* JobToProcess);
+void 	JOB_Init();
+job_t* 	JOB_Create(node_t* AssignedNodePtr, data_t* AssignedDataPtr, Boolean Periodic, uint32_t Rate,job_type_t Type);
+uint8_t JOB_Process(job_t* JobToProcess);
 
 #endif /* JOB_H_ */

@@ -14,19 +14,20 @@
 /**
  * Standard include Files
  * */
+#include "data.h"
+
 #include "String.h"
 
 /**
  * User Defined include Files
  * */
-#include "Data.h"
 #include "Global.h"
 #include "Log.h"
-#include "TimeBase.h"
+#include "tbase.h"
 
 
 FILE 			*ProtocolFile;		/*!< Store pointer to protocol file	*/
-Protocol** 		DefinedProtocols;	/*!< List of all protocols define in protocol file */
+protocol_t** 		DefinedProtocols;	/*!< List of all protocols define in protocol file */
 uint32_t 		ProtocolsNo;		/*!< Number of protocol	*/
 uint32_t 		DataIdCounter;		/*!< Used to create generic Data IDs	*/
 
@@ -42,7 +43,7 @@ uint32_t 		DataIdCounter;		/*!< Used to create generic Data IDs	*/
 * @return Protocol* 	- Return pointer to Protocol which ID is sent by parameter ProtocolID
 * @return NULL 			- If there is no protocol with ID value define by ProtocolID
 */
-Protocol*   Get_Protocol_Data(uint32_t ProtocolID){
+protocol_t*   DATA_GetProtocol(uint32_t ProtocolID){
 	uint32_t i=0;
 	while(i < ProtocolsNo){
 		if(DefinedProtocols[i]->ID == ProtocolID){
@@ -82,16 +83,16 @@ uint8_t Parse_Protocols(){
 		/*Read falues from file in defined format*/
 		fscanf(ProtocolFile,"%d %c %d %s",&TempId, &TempResponse, &TempOverhead,TempString);
 		/*Check if there is protocol with same ID*/
-		if(Get_Protocol_Data(TempId) != NULL){
+		if(DATA_GetProtocol(TempId) != NULL){
 			/*If there is a protocol with same id print error*/
 			sprintf(TempString,"%d",TempId);
-			Print_ErrorLog(ERROR_PROTOCOL_0,TempString);
+			LOG_ERROR_Print(ERROR_PROTOCOL_0,TempString);
 			return 1;
 		}
 		/*Create protocl and add it to the list of protocols*/
 		ProtocolsNo++;
-		DefinedProtocols = realloc(DefinedProtocols,ProtocolsNo*sizeof(Protocol*));
-		DefinedProtocols[ProtocolsNo-1]=malloc(sizeof(Protocol));
+		DefinedProtocols = realloc(DefinedProtocols,ProtocolsNo*sizeof(protocol_t*));
+		DefinedProtocols[ProtocolsNo-1]=malloc(sizeof(protocol_t));
 		DefinedProtocols[ProtocolsNo-1]->ID = TempId;
 		DefinedProtocols[ProtocolsNo-1]->Overhead = TempOverhead;
 		if(TempResponse == 'y'){
@@ -120,17 +121,17 @@ uint8_t Parse_Protocols(){
 * @return 0 - Initialization success
 * @return 1 - Initialization failed
 */
-uint8_t Init_Data(){
+uint8_t DATA_Init(){
 	DataIdCounter = 0;  /*!< Initialize numbers of data*/
 	ProtocolsNo = 0;    /*!< Initialize numbers of protocols*/
 	ProtocolFile = fopen(Protocols_FileName,"r");
 	if(ProtocolFile == 0){
-		Print_ErrorLog(ERROR_FILE_0,Protocols_FileName);
+		LOG_ERROR_Print(ERROR_FILE_0,Protocols_FileName);
 		return 1;
 	}
-	DefinedProtocols=malloc(sizeof(Protocol*));
+	DefinedProtocols=malloc(sizeof(protocol_t*));
 	if(DefinedProtocols==0){
-		Print_ErrorLog(ERROR_ALLOCATING_0,"Problem with protocols allocation");
+		LOG_ERROR_Print(ERROR_ALLOCATING_0,"Problem with protocols allocation");
 		return 1;
 	}
 	if(Parse_Protocols()!=0){
@@ -149,10 +150,10 @@ uint8_t Init_Data(){
 * @return DataPath 		- DataPath is successfully created
 * @return NULL 			- DataPath creation fault
 */
-DataPath* Create_Path_Data(uint32_t DestinationId, uint32_t* PathLine){
-	DataPath* CreatedPath=malloc(sizeof(DataPath));
+data_path_t* DATA_Create_Path(uint32_t DestinationId, uint32_t* PathLine){
+	data_path_t* CreatedPath=malloc(sizeof(data_path_t));
 	if(CreatedPath==0){
-		Print_ErrorLog(ERROR_ALLOCATING_0,"Problem with Path allocation");
+		LOG_ERROR_Print(ERROR_ALLOCATING_0,"Problem with Path allocation");
 		return NULL;
 	}
 	uint32_t Counter=0;
@@ -160,7 +161,7 @@ DataPath* Create_Path_Data(uint32_t DestinationId, uint32_t* PathLine){
 	while(PathLine[Counter]!=DestinationId)Counter++;
 	CreatedPath->Line = malloc((Counter+1)*sizeof(uint32_t));
 	if(CreatedPath->Line==0){
-		Print_ErrorLog(ERROR_ALLOCATING_0,"Problem with Path line allocation");
+		LOG_ERROR_Print(ERROR_ALLOCATING_0,"Problem with Path line allocation");
 		return NULL;
 	}
 	Counter=0;
@@ -182,11 +183,11 @@ DataPath* Create_Path_Data(uint32_t DestinationId, uint32_t* PathLine){
 * @return Data* 		- Return pointer to data if creation was successful
 * @return NULL 			- If creation wasn't successful
 */
-Data* Create_Data(uint32_t Size,DataPath* Path,uint32_t ProtocolID){
+data_t* DATA_Create(uint32_t Size, data_path_t* Path, uint32_t ProtocolID){
 	char TempString[30];   /*!< USed to store error messages*/
-	Data* CreatedData 	= malloc(sizeof(Data));
+	data_t* CreatedData 	= malloc(sizeof(data_t));
 	if(CreatedData == NULL){
-		Print_ErrorLog(ERROR_ALLOCATING_0,"Data allocation");
+		LOG_ERROR_Print(ERROR_ALLOCATING_0,"Data allocation");
 		return NULL;
 	}
 	CreatedData->Path 			= Path;
@@ -197,12 +198,12 @@ Data* Create_Data(uint32_t Size,DataPath* Path,uint32_t ProtocolID){
 	CreatedData->ElapsedResponseTime 	= 0;
 	CreatedData->CreatedTime 			= 0;
 	CreatedData->ID 			= DataIdCounter++;
-	CreatedData->State			= Unitialized;
-	CreatedData->Type			= Request;
-	CreatedData->AssignedProtocol = Get_Protocol_Data(ProtocolID);
+	CreatedData->State			= DATA_STATE_UNITIALIZED;
+	CreatedData->Type			= DATA_TYPE_REQUEST;
+	CreatedData->AssignedProtocol = DATA_GetProtocol(ProtocolID);
 	if(CreatedData->AssignedProtocol == NULL){
 		sprintf(TempString,"%d",ProtocolID);
-		Print_ErrorLog(ERROR_PROTOCOL_1,TempString);
+		LOG_ERROR_Print(ERROR_PROTOCOL_1,TempString);
 		free(CreatedData);
 		return NULL;
 	}
@@ -217,9 +218,9 @@ Data* Create_Data(uint32_t Size,DataPath* Path,uint32_t ProtocolID){
 * @return 	0 				- Data require response and response is created
 * @return	1 				- Data does not require response
 */
-uint8_t		Create_Response_Data(Data* DataPtr,uint32_t ResponseSize){
+uint8_t		DATA_CreateResponse(data_t* DataPtr,uint32_t ResponseSize){
 	if( (DataPtr->AssignedProtocol->Response == False)) return 1;
-	if((DataPtr->Type != Request)) return 1;
+	if((DataPtr->Type != DATA_TYPE_REQUEST)) return 1;
 	uint32_t Counter_Start = 0;
 	uint32_t Counter_End = 0;
 	uint32_t Temp;
@@ -232,10 +233,10 @@ uint8_t		Create_Response_Data(Data* DataPtr,uint32_t ResponseSize){
 		Counter_Start++;
 		Counter_End--;
 	}
-	DataPtr->Type = Response;
+	DataPtr->Type = DATA_TYPE_RESPONSE;
 	DataPtr->BytesToProcess =ResponseSize;
 	DataPtr->Size =ResponseSize;
-	DataPtr->State = Unitialized;
+	DataPtr->State = DATA_STATE_UNITIALIZED;
 	return 0;
 }
 

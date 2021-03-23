@@ -10,17 +10,17 @@
  *	@author Haris Turkmanovic
  *	@date   August 2019.
  * */
-#include "Job.h"
+#include "job.h"
 
-uint32_t JobIdCounter;
+uint32_t prvJOB_ID_COUNTER;
 
-void Init_Job(){
-	JobIdCounter = 0;
+void JOB_Init(){
+	prvJOB_ID_COUNTER = 0;
 }
 
-Job* Create_Job(Node* AssignedNodePtr, Data* AssignedDataPtr, Boolean Periodic, uint32_t Rate,JobType Type){
-	Job* CreatedJob 			= malloc(sizeof(Job));
-	CreatedJob->ID 				= JobIdCounter++;
+job_t* JOB_Create(node_t* AssignedNodePtr, data_t* AssignedDataPtr, Boolean Periodic, uint32_t Rate,job_type_t Type){
+	job_t* CreatedJob 			= malloc(sizeof(job_t));
+	CreatedJob->ID 				= prvJOB_ID_COUNTER++;
 	CreatedJob->Period 			= Rate;
 	CreatedJob->Periodic 		= Periodic;
 	CreatedJob->ProcessedNode 	= AssignedNodePtr;
@@ -29,22 +29,22 @@ Job* Create_Job(Node* AssignedNodePtr, Data* AssignedDataPtr, Boolean Periodic, 
 	return CreatedJob;
 }
 
-uint8_t Process_Job(Job* JobToProcess){
+uint8_t JOB_Process(job_t* JobToProcess){
 	switch(JobToProcess->Type){
-	case Create:
-		Receive_DataOn_Node(JobToProcess->ProcessedNode, JobToProcess->ProcessedData);
+	case JOB_TYPE_CREATE:
+		NODE_ReceiveData(JobToProcess->ProcessedNode, JobToProcess->ProcessedData);
 		if(JobToProcess->Periodic == True){
-			Make_Producer_Node(JobToProcess->ProcessedNode->ID,	JobToProcess->Period, True, JobToProcess->ProcessedData->Size, JobToProcess->ProcessedData->Path->Line, JobToProcess->ProcessedData->Path->DestinationID,True, JobToProcess->ProcessedData->AssignedProtocol->ID);
+			NODE_MakeProducerNode(JobToProcess->ProcessedNode->ID,	JobToProcess->Period, True, JobToProcess->ProcessedData->Size, JobToProcess->ProcessedData->Path->Line, JobToProcess->ProcessedData->Path->DestinationID,True, JobToProcess->ProcessedData->AssignedProtocol->ID);
 		}
 		break;
-	case Process:
-		Process_DataOn_Node(JobToProcess->ProcessedNode);
+	case JOB_TYPE_PROCESS:
+		NODE_ProcessData(JobToProcess->ProcessedNode);
 		break;
-	case Send:
-		Send_DataFrom_Node(JobToProcess->ProcessedNode);
+	case JOB_TYPE_SEND:
+		NODE_SendData(JobToProcess->ProcessedNode);
 		break;
-	case Receive:
-		Receive_DataOn_Node(JobToProcess->ProcessedNode, JobToProcess->ProcessedData);
+	case JOB_TYPE_RECEIVE:
+		NODE_ReceiveData(JobToProcess->ProcessedNode, JobToProcess->ProcessedData);
 		break;
 	}
 	free(JobToProcess);
