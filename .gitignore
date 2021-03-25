@@ -1,4 +1,6 @@
-Debug/
+Debug/src
+Debug/*.exe
+Debug/*.mk
 html/
 DoxyGenInstallDir/
 man/
