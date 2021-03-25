@@ -146,33 +146,39 @@ void Print_DataLog(data_t* DataPtr,FILE* FileToWrite,double Time){
 	sprintf(Text,"%d",DataPtr->BytesToProcess);
 	fprintf(FileToWrite,Text);
 	fprintf(FileToWrite,",");
+	if(DataPtr->aggregationFlag == DATA_AGG_FULL){
+		fprintf(FileToWrite,"A_");
+		for(uint32_t i = 0; i < DataPtr->aggreationList->numberOfData;i++){
+			fprintf(FileToWrite,"%d_", DataPtr->aggreationList->dataList[i]->ID);
+		}
+	}
 	switch(DataPtr->State){
-	case DATA_STATE_CREATED:
-		fprintf(FileToWrite,"C");
-		break;
-	case DATA_STATE_WAIT:
-		fprintf(FileToWrite,"W");
-		break;
-	case DATA_STATE_RECEIVED:
-		fprintf(FileToWrite,"R");
-		break;
-	case DATA_STATE_PROCESSED:
-		fprintf(FileToWrite,"P");
-		break;
-	case DATA_STATE_CONSUMED:
-		fprintf(FileToWrite,"M");
-		if(DataPtr->AssignedProtocol->Response == True){
-			if(DataPtr->Type == DATA_TYPE_RESPONSE){
-				fprintf(DataElapsedTimeFile,"%d,%lf,%lf,%lf\n",DataPtr->ID,DataPtr->CreatedTime,DataPtr->ElapsedRequestTime, DataPtr->ElapsedResponseTime);
+		case DATA_STATE_CREATED:
+			fprintf(FileToWrite,"C");
+			break;
+		case DATA_STATE_WAIT:
+			fprintf(FileToWrite,"W");
+			break;
+		case DATA_STATE_RECEIVED:
+			fprintf(FileToWrite,"R");
+			break;
+		case DATA_STATE_PROCESSED:
+			fprintf(FileToWrite,"P");
+			break;
+		case DATA_STATE_CONSUMED:
+			fprintf(FileToWrite,"M");
+			if(DataPtr->AssignedProtocol->Response == True){
+				if(DataPtr->Type == DATA_TYPE_RESPONSE){
+					fprintf(DataElapsedTimeFile,"%d,%lf,%lf,%lf\n",DataPtr->ID,DataPtr->CreatedTime,DataPtr->ElapsedRequestTime, DataPtr->ElapsedResponseTime);
+				}
 			}
-		}
-		else{
-			fprintf(DataElapsedTimeFile,"%d,%lf,%lf,%lf\n",DataPtr->ID,DataPtr->CreatedTime, DataPtr->ElapsedRequestTime, 0.0);
-		}
-		break;
-	case DATA_STATE_SENT:
-		fprintf(FileToWrite,"S");
-		break;
+			else{
+				fprintf(DataElapsedTimeFile,"%d,%lf,%lf,%lf\n",DataPtr->ID,DataPtr->CreatedTime, DataPtr->ElapsedRequestTime, 0.0);
+			}
+			break;
+		case DATA_STATE_SENT:
+			fprintf(FileToWrite,"S");
+			break;
 	}
 	if(DataPtr->Type == DATA_TYPE_REQUEST)fprintf(FileToWrite,"_Req");
 	if(DataPtr->Type == DATA_TYPE_RESPONSE)fprintf(FileToWrite,"_Res");

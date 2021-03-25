@@ -236,7 +236,7 @@ data_t* 		DATA_AGG_Create(data_path_t* Path,uint32_t ProtocolID,double time){
 	CreatedData->ElapsedResponseTime 	= 0;
 	CreatedData->CreatedTime 			= time;
 	CreatedData->ID 					= DataIdCounter++;
-	CreatedData->State					= DATA_STATE_UNITIALIZED;
+	CreatedData->State					= DATA_STATE_CREATED;
 	CreatedData->Type					= DATA_TYPE_REQUEST;
 	CreatedData->AssignedProtocol 		= DATA_GetProtocol(ProtocolID);
 	if(CreatedData->AssignedProtocol == NULL){

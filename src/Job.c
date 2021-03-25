@@ -46,6 +46,12 @@ job_status_t JOB_Process(job_t* JobToProcess){
 				return JOB_ERROR;
 			}
 			break;
+		case JOB_TYPE_PROCESS_MTU:
+			if(NODE_ProcessMTUData(JobToProcess->ProcessedNode) != NODE_OK){
+				puts("JOB: Error during mtu data processing");
+				return JOB_ERROR;
+			}
+			break;
 		case JOB_TYPE_SEND:
 			if(NODE_SendData(JobToProcess->ProcessedNode) != NODE_OK){
 				puts("JOB: Error during data sending");
@@ -54,6 +60,12 @@ job_status_t JOB_Process(job_t* JobToProcess){
 			break;
 		case JOB_TYPE_RECEIVE:
 			if(NODE_ReceiveData(JobToProcess->ProcessedNode, JobToProcess->ProcessedData) != NODE_OK){
+				puts("JOB: Error during data receiving");
+				return JOB_ERROR;
+			}
+			break;
+		case JOB_TYPE_RECEIVE_AGG:
+			if(NODE_ReceiveAggData(JobToProcess->ProcessedNode, JobToProcess->ProcessedData) != NODE_OK){
 				puts("JOB: Error during data receiving");
 				return JOB_ERROR;
 			}

@@ -26,8 +26,10 @@ typedef enum{
 typedef enum{
 	JOB_TYPE_CREATE,
 	JOB_TYPE_PROCESS,
+	JOB_TYPE_PROCESS_MTU,
 	JOB_TYPE_SEND,
-	JOB_TYPE_RECEIVE
+	JOB_TYPE_RECEIVE,
+	JOB_TYPE_RECEIVE_AGG
 }job_type_t;
 
 typedef struct Job{

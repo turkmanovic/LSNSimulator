@@ -304,19 +304,19 @@ node_status_t 			NODE_ReceiveData(node_t* NodePtr, data_t* DataPtr){
 	else{
    	    double ProcessOverheadTime = 0;
 		NodePtr->processingData = DataPtr;
-   	    connection_t* NextLink = NODE_GetNextLink(NodePtr);
+   	    //connection_t* NextLink = NODE_GetNextLink(NodePtr);
 	    NodePtr->ProcessedOverheadBytesCount+= DataPtr->Overhead;
 		if(DataPtr->State != DATA_STATE_CREATED){
 				DataPtr->State = DATA_STATE_RECEIVED;
 	    }
-		if(NextLink != 0){
-   	    	int NumberOfPackets = ceil((((double)DataPtr->Size)/((double)NodePtr->compressionLevel))/((double)NextLink->AssignedLink->MTUSize));
-   	    	DataPtr->Overhead = NumberOfPackets*DataPtr->AssignedProtocol->Overhead;
-   	    	ProcessOverheadTime = NumberOfPackets*NodePtr->MTUProcessOverhead;
-		}
+//		if(NextLink != 0){
+//   	    	int NumberOfPackets = ceil((((double)DataPtr->Size)/((double)NodePtr->compressionLevel))/((double)NextLink->AssignedLink->MTUSize));
+//   	    	DataPtr->Overhead = NumberOfPackets*DataPtr->AssignedProtocol->Overhead;
+//   	    	ProcessOverheadTime = NumberOfPackets*NodePtr->MTUProcessOverhead;
+//		}
    	    double TimeToProcessArrivedData = (double)DataPtr->BytesToProcess/NodePtr->ProcessTime;
-		double TimeToProcessPackets 	= ProcessOverheadTime;
-		double ProcessTime 				= TimeToProcessArrivedData + TimeToProcessPackets;
+//		double TimeToProcessPackets 	= ProcessOverheadTime;
+		double ProcessTime 				= TimeToProcessArrivedData;// + TimeToProcessPackets;
 		DataPtr->EnergyToProcessData	+= ProcessTime*NodePtr->activeConsumption;
 
 
@@ -337,6 +337,9 @@ node_status_t 			NODE_ReceiveData(node_t* NodePtr, data_t* DataPtr){
 		return NODE_OK;
 	}
 	return NODE_ERROR;
+}
+node_status_t 			NODE_ReceiveAggData(node_t* NodePtr, data_t* DataPtr){
+
 }
 node_status_t 			NODE_ProcessData(node_t* NodePtr){
 	if(NodePtr->processingData == NULL){
@@ -386,19 +389,42 @@ node_status_t 			NODE_ProcessData(node_t* NodePtr){
 		NodePtr->processingData = NULL;
 		NodePtr->processingData = prvNODE_GetDataToSend(NodePtr);
 		if(NodePtr->processingData != NULL){
-			connection_t* NextLink 					= NODE_GetNextLink(NodePtr);
-			node_t* NextNodePtr 					= NODE_GetById(NextLink->DestinationNodeId);
-			NodePtr->processingData->Size 			= NodePtr->processingData->Size/NodePtr->compressionLevel;
-			NodePtr->processingData->BytesToProcess =  NodePtr->processingData->Size+NodePtr->processingData->Overhead;
-			double TransferDuration = (NextLink->AssignedLink->NumberOfHops+1)*NodePtr->processingData->BytesToProcess/LINK_GetSpeed(NextLink);
-			NodePtr->processingData->EnergyToTransmitData 	= TransferDuration * NextLink->AssignedLink->TransmitConsumption;
-			NodePtr->processingData->EnergyToReceiveData 	= TransferDuration * NextLink->AssignedLink->ReceiveConsumption;
-			job_t* JobSentCreated = JOB_Create(NodePtr, NodePtr->processingData,False,CurrentTime+TransferDuration,JOB_TYPE_SEND);
-			job_t* JobReceiveCreated = JOB_Create(NextNodePtr, NodePtr->processingData,False,CurrentTime+TransferDuration,JOB_TYPE_RECEIVE);
-			event_t* SendEvent = TBASE_CreateEvent(JobSentCreated,CurrentTime+TransferDuration,1);
-			event_t* ReceiveEvent = TBASE_CreateEvent(JobReceiveCreated,CurrentTime+TransferDuration,0);
-			TBASE_AddEvent(SendEvent);
-			TBASE_AddEvent(ReceiveEvent);
+			if(NodePtr->processingData->aggregationFlag == DATA_AGG_FULL){
+				//if AGG data is prepare calculate how much time it is required to process MTU packets
+		  	    connection_t* NextLink = NODE_GetNextLink(NodePtr);
+		  	    if(NextLink != 0){
+					int NumberOfPackets = ceil((((double)NodePtr->processingData->Size)/((double)NodePtr->compressionLevel))/((double)NextLink->AssignedLink->MTUSize));
+					NodePtr->processingData->Overhead = NumberOfPackets*NodePtr->processingData->AssignedProtocol->Overhead;
+					NodePtr->processingData->BytesToProcess =  NodePtr->processingData->Overhead;
+					double ProcessOverheadTime = NumberOfPackets*NodePtr->MTUProcessOverhead;
+					NodePtr->processingData->EnergyToProcessData += ProcessOverheadTime*NodePtr->activeConsumption;
+					NodePtr->Processing     		= True;
+					job_t* CreatedJob  				= JOB_Create(NodePtr, NodePtr->processingData, True, CurrentTime+ProcessOverheadTime, JOB_TYPE_PROCESS_MTU);
+					event_t* CreatedEvent 			= TBASE_CreateEvent(CreatedJob, CurrentTime+ProcessOverheadTime, 1);
+					TBASE_AddEvent(CreatedEvent);
+		  	    }
+		  	    else{
+		  	    	printf("NODE: There is no next link on node %d\r\n", NodePtr->ID);
+		  	    	return NODE_ERROR;
+		  	    }
+
+			}
+			else{
+				//if proccessing of RAW data is done, send it
+				connection_t* NextLink 					= NODE_GetNextLink(NodePtr);
+				node_t* NextNodePtr 					= NODE_GetById(NextLink->DestinationNodeId);
+				NodePtr->processingData->Size 			= NodePtr->processingData->Size/NodePtr->compressionLevel;
+				NodePtr->processingData->BytesToProcess =  NodePtr->processingData->Size+NodePtr->processingData->Overhead;
+				double TransferDuration = (NextLink->AssignedLink->NumberOfHops+1)*NodePtr->processingData->BytesToProcess/LINK_GetSpeed(NextLink);
+				NodePtr->processingData->EnergyToTransmitData 	= TransferDuration * NextLink->AssignedLink->TransmitConsumption;
+				NodePtr->processingData->EnergyToReceiveData 	= TransferDuration * NextLink->AssignedLink->ReceiveConsumption;
+				job_t* JobSentCreated = JOB_Create(NodePtr, NodePtr->processingData,False,CurrentTime+TransferDuration,JOB_TYPE_SEND);
+				job_t* JobReceiveCreated = JOB_Create(NextNodePtr, NodePtr->processingData,False,CurrentTime+TransferDuration,JOB_TYPE_RECEIVE);
+				event_t* SendEvent = TBASE_CreateEvent(JobSentCreated,CurrentTime+TransferDuration,1);
+				event_t* ReceiveEvent = TBASE_CreateEvent(JobReceiveCreated,CurrentTime+TransferDuration,0);
+				TBASE_AddEvent(SendEvent);
+				TBASE_AddEvent(ReceiveEvent);
+			}
 		}
 		else{
 			//go to low power mode if there is no more data to process
@@ -418,6 +444,31 @@ node_status_t 			NODE_ProcessData(node_t* NodePtr){
 		return NODE_OK;
 	}
 	return NODE_ERROR;
+
+}
+
+node_status_t 			NODE_ProcessMTUData(node_t* NodePtr){
+	double CurrentTime = TBASE_GetTime();
+	if(NodePtr->processingData == NULL){
+		puts("NODE: There is no assigned data for processing");
+		return NODE_ERROR;;
+	}
+	NodePtr->processingData->State = DATA_STATE_PROCESSED;
+	Print_NodeLog(NodePtr,NodePtr->processingData, CurrentTime, 0, 0);
+	connection_t* NextLink 					= NODE_GetNextLink(NodePtr);
+	node_t* NextNodePtr 					= NODE_GetById(NextLink->DestinationNodeId);
+	NodePtr->processingData->Size 			= NodePtr->processingData->Size/NodePtr->compressionLevel;
+	NodePtr->processingData->BytesToProcess =  NodePtr->processingData->Size+NodePtr->processingData->Overhead;
+	double TransferDuration = (NextLink->AssignedLink->NumberOfHops+1)*NodePtr->processingData->BytesToProcess/LINK_GetSpeed(NextLink);
+	NodePtr->processingData->EnergyToTransmitData 	= TransferDuration * NextLink->AssignedLink->TransmitConsumption;
+	NodePtr->processingData->EnergyToReceiveData 	= TransferDuration * NextLink->AssignedLink->ReceiveConsumption;
+	job_t* JobSentCreated = JOB_Create(NodePtr, NodePtr->processingData,False,CurrentTime+TransferDuration,JOB_TYPE_SEND);
+	job_t* JobReceiveCreated = JOB_Create(NextNodePtr, NodePtr->processingData,False,CurrentTime+TransferDuration,JOB_TYPE_RECEIVE);
+	event_t* SendEvent = TBASE_CreateEvent(JobSentCreated,CurrentTime+TransferDuration,1);
+	event_t* ReceiveEvent = TBASE_CreateEvent(JobReceiveCreated,CurrentTime+TransferDuration,0);
+	TBASE_AddEvent(SendEvent);
+	TBASE_AddEvent(ReceiveEvent);
+	return NODE_OK;
 
 }
 node_status_t 			NODE_SendData(node_t* NodePtr){
