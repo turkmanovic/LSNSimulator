@@ -16,6 +16,8 @@
 #include "topology.h"
 
 int main(void) {
+	setvbuf(stdout, NULL, _IONBF, 0);
+	setvbuf(stderr, NULL, _IONBF, 0);
 	puts("Simulator v0.1"); /* prints !!!Hello World!!! */
 
 	LOG_ERROR_Init();
@@ -27,8 +29,12 @@ int main(void) {
 	LINK_Init();
 	TPLG_Init();
 	puts("Simulation start");
-    TBASE_Start(10000);
-    puts("Simulation end");
+    if(TBASE_Start(10000) != TBASE_OK){
+    	puts("Simulation failed");
+    }
+    else{
+    	puts("Simulation successfully ended");
+    }
     while(1);
 	return 0;
 }

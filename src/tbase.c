@@ -79,7 +79,7 @@ uint8_t TBASE_AddEvent(event_t* EventToProcess){
 double TBASE_GetTime(){
 	return prvTBASE_TIME;
 }
-void TBASE_Start(uint32_t SimulationTime){
+tbase_status_t TBASE_Start(uint32_t SimulationTime){
 	event_t* CurrentEvent	=	prvTBASE_LIST_HEAD;
 	event_t* TempPointer;
 	prvTBASE_PROCESSING = 1;
@@ -87,7 +87,10 @@ void TBASE_Start(uint32_t SimulationTime){
 		if(prvTBASE_LIST_HEAD->Time != prvTBASE_TIME){
 			prvTBASE_TIME = prvTBASE_LIST_HEAD->Time;
 		}
-		JOB_Process(CurrentEvent->AssignedJob);
+		if(JOB_Process(CurrentEvent->AssignedJob) != JOB_OK){
+			puts("TBASE: Error during job processing");
+			return TBASE_ERROR;
+		}
 		TempPointer 	= CurrentEvent;
 		CurrentEvent 	= CurrentEvent->NextEvent;
 		if(CurrentEvent!=NULL){
@@ -96,5 +99,5 @@ void TBASE_Start(uint32_t SimulationTime){
 		prvTBASE_LIST_HEAD = CurrentEvent;
 		free(TempPointer);
 	}
-
+	return TBASE_OK;
 }

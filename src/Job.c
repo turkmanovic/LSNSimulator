@@ -29,24 +29,36 @@ job_t* JOB_Create(node_t* AssignedNodePtr, data_t* AssignedDataPtr, Boolean Peri
 	return CreatedJob;
 }
 
-uint8_t JOB_Process(job_t* JobToProcess){
+job_status_t JOB_Process(job_t* JobToProcess){
 	switch(JobToProcess->Type){
-	case JOB_TYPE_CREATE:
-		NODE_ReceiveData(JobToProcess->ProcessedNode, JobToProcess->ProcessedData);
-		if(JobToProcess->Periodic == True){
-			NODE_MakeProducerNode(JobToProcess->ProcessedNode->ID,	JobToProcess->Period, True, JobToProcess->ProcessedData->Size, JobToProcess->ProcessedData->Path->Line, JobToProcess->ProcessedData->Path->DestinationID,True, JobToProcess->ProcessedData->AssignedProtocol->ID);
-		}
-		break;
-	case JOB_TYPE_PROCESS:
-		NODE_ProcessData(JobToProcess->ProcessedNode);
-		break;
-	case JOB_TYPE_SEND:
-		NODE_SendData(JobToProcess->ProcessedNode);
-		break;
-	case JOB_TYPE_RECEIVE:
-		NODE_ReceiveData(JobToProcess->ProcessedNode, JobToProcess->ProcessedData);
-		break;
+		case JOB_TYPE_CREATE:
+			if(NODE_ReceiveData(JobToProcess->ProcessedNode, JobToProcess->ProcessedData) != NODE_OK){
+				puts("JOB: Error during data receiving");
+				return JOB_ERROR;
+			}
+			if(JobToProcess->Periodic == True){
+				NODE_MakeProducerNode(JobToProcess->ProcessedNode->ID,	JobToProcess->Period, True, JobToProcess->ProcessedData->Size, JobToProcess->ProcessedData->Path->line, JobToProcess->ProcessedData->Path->destinationID,True, JobToProcess->ProcessedData->AssignedProtocol->ID);
+			}
+			break;
+		case JOB_TYPE_PROCESS:
+			if(NODE_ProcessData(JobToProcess->ProcessedNode) != NODE_OK){
+				puts("JOB: Error during data processing");
+				return JOB_ERROR;
+			}
+			break;
+		case JOB_TYPE_SEND:
+			if(NODE_SendData(JobToProcess->ProcessedNode) != NODE_OK){
+				puts("JOB: Error during data sending");
+				return JOB_ERROR;
+			}
+			break;
+		case JOB_TYPE_RECEIVE:
+			if(NODE_ReceiveData(JobToProcess->ProcessedNode, JobToProcess->ProcessedData) != NODE_OK){
+				puts("JOB: Error during data receiving");
+				return JOB_ERROR;
+			}
+			break;
 	}
 	free(JobToProcess);
-	return 1;
+	return JOB_OK;
 }

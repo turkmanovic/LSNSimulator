@@ -13,6 +13,11 @@
 #include <stdio.h>
 #include <stdint.h>
 
+typedef enum{
+	TBASE_OK,
+	TBASE_ERROR
+}tbase_status_t;
+
 /**
 * This structure represent TimeBase logic list element.
 *
@@ -56,6 +61,6 @@ double 	    	TBASE_GetTime();
  * @brief Start Simulation
  * @param SimulationTime - Simulation time duration
  */
-void 			TBASE_Start(uint32_t SimulationTime);
+tbase_status_t 	TBASE_Start(uint32_t SimulationTime);
 
 #endif /* TBASE_H_ */

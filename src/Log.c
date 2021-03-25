@@ -196,11 +196,11 @@ void Print_NodeLog(node_t* NodePtr,data_t* DataPtr, double Time, uint8_t lpStatu
 	fprintf(fp,",");
 	if(lpStatusFlag == 0){
 		Print_DataLog(DataPtr,fp,Time);
-		if(NodePtr->ProcessingData == NULL || DataPtr->State == DATA_STATE_CONSUMED){
+		if(NodePtr->processingData == NULL || DataPtr->State == DATA_STATE_CONSUMED){
 			sprintf(Text,"%d",NodePtr->SizeOfWaitData);
 		}
 		else{
-			sprintf(Text,"%d",NodePtr->SizeOfWaitData+NodePtr->ProcessingData->BytesToProcess);
+			sprintf(Text,"%d",NodePtr->SizeOfWaitData+NodePtr->processingData->BytesToProcess);
 		}
 		fprintf(fp,",");
 		fprintf(fp,Text);
@@ -212,6 +212,9 @@ void Print_NodeLog(node_t* NodePtr,data_t* DataPtr, double Time, uint8_t lpStatu
 		fprintf(fp,Text);
 		fprintf(fp,",");
 		sprintf(Text,"%d",NodePtr->ProcessedOverheadBytesCount);
+		fprintf(fp,Text);
+		fprintf(fp,",");
+		sprintf(Text,"%d",NodePtr->processedDataBufferSize);
 		fprintf(fp,Text);
 		fprintf(fp,",");
 		sprintf(Text,"%lf",NodePtr->FullConsumption);

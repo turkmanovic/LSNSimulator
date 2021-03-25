@@ -19,7 +19,7 @@ uint8_t prvTPLG_CreateNodes(){
 	while(1){
 		fscanf(prvTPLG_CONFIG_FILE, "%d%lf%d%d%d%lf%lf", &TempId, &TempProcessTime, &AggregationLevel, &ReturnSize, &MTUProcessOverhead, &activeConsumption, &lpConsumption);
 		if(TempId == 0) break;
-		if(NODE_Create(TempId, TempProcessTime,AggregationLevel,ReturnSize,MTUProcessOverhead, lpConsumption,activeConsumption)==NULL){
+		if(NODE_Create(TempId, TempProcessTime,AggregationLevel,ReturnSize,MTUProcessOverhead, lpConsumption,activeConsumption,CONFIG_NODE_AGG_LEVEL)==NULL){
 			return 1;
 		}
 		do{
@@ -49,9 +49,9 @@ uint8_t prvTPLG_CreateConnections(){
 }
 
 uint8_t prvTPLG_CreateDataLink(){
-	uint32_t* DataLine;
-	uint32_t  DataLineLength;
-	uint32_t TempId, Rate,Size,ProtocolId;
+	uint32_t* 	DataLine;
+	uint32_t  	DataLineLength;
+	uint32_t 	TempId, Rate,Size,ProtocolId;
 
 	Boolean Periodic;
 	char TempChar;
