@@ -29,6 +29,7 @@ uint8_t Init_DataLog(){
 		LOG_ERROR_Print(ERROR_FILE_0,ElapsedTimeLog_FileName);
 		return 1;
 	}
+	fclose(DataElapsedTimeFile);
 	return 0;
 
 }
@@ -159,25 +160,52 @@ void Print_DataLog(data_t* DataPtr,FILE* FileToWrite,double Time){
 		case DATA_STATE_WAIT:
 			fprintf(FileToWrite,"W");
 			break;
-		case DATA_STATE_RECEIVED:
-			fprintf(FileToWrite,"R");
+		case DATA_STATE_RECEIVE_END:
+			fprintf(FileToWrite,"R_E");
 			break;
-		case DATA_STATE_PROCESSED:
-			fprintf(FileToWrite,"P");
+		case DATA_STATE_RECEIVE_START:
+			fprintf(FileToWrite,"R_S");
+			break;
+		case DATA_STATE_PROCESS_END:
+			fprintf(FileToWrite,"P_");
+			if(DataPtr->overheadProccesFlag == 1){
+				fprintf(FileToWrite,"O_");
+			}
+			else{
+				fprintf(FileToWrite,"D_");
+			}
+			fprintf(FileToWrite,"E");
+			break;
+		case DATA_STATE_PROCESS_START:
+			fprintf(FileToWrite,"P_");
+			if(DataPtr->overheadProccesFlag == 1){
+				fprintf(FileToWrite,"O_");
+			}
+			else{
+				fprintf(FileToWrite,"D_");
+			}
+			fprintf(FileToWrite,"S");
 			break;
 		case DATA_STATE_CONSUMED:
 			fprintf(FileToWrite,"M");
 			if(DataPtr->AssignedProtocol->Response == True){
 				if(DataPtr->Type == DATA_TYPE_RESPONSE){
-					fprintf(DataElapsedTimeFile,"%d,%lf,%lf,%lf\n",DataPtr->ID,DataPtr->CreatedTime,DataPtr->ElapsedRequestTime, DataPtr->ElapsedResponseTime);
+					DataElapsedTimeFile = fopen(ElapsedTimeLog_FileName,"a");
+					fprintf(DataElapsedTimeFile,"%d,%.3lf,%.3lf,%.3lf,%.3lf\n",DataPtr->ID,DataPtr->CreatedTime,DataPtr->ElapsedRequestTime, DataPtr->ElapsedResponseTime,DataPtr->ElapsedRequestTime + DataPtr->ElapsedResponseTime);
+					fclose(DataElapsedTimeFile);
 				}
 			}
 			else{
-				fprintf(DataElapsedTimeFile,"%d,%lf,%lf,%lf\n",DataPtr->ID,DataPtr->CreatedTime, DataPtr->ElapsedRequestTime, 0.0);
+				DataElapsedTimeFile = fopen(ElapsedTimeLog_FileName,"a");
+				fprintf(DataElapsedTimeFile,"%d,%lf,%lf,%lf,%.3lf\n",DataPtr->ID,DataPtr->CreatedTime, DataPtr->ElapsedRequestTime, 0.0, DataPtr->ElapsedRequestTime);
+				fclose(DataElapsedTimeFile);
 			}
 			break;
-		case DATA_STATE_SENT:
-			fprintf(FileToWrite,"S");
+		case DATA_STATE_TRANSMIT_END:
+			fprintf(FileToWrite,"T_E");
+			break;
+		case DATA_STATE_TRANSMIT_START:
+			fprintf(FileToWrite,"T_S");
 			break;
 	}
 	if(DataPtr->Type == DATA_TYPE_REQUEST)fprintf(FileToWrite,"_Req");
@@ -189,7 +217,7 @@ void Print_DataLog(data_t* DataPtr,FILE* FileToWrite,double Time){
 void Print_NodeLog(node_t* NodePtr,data_t* DataPtr, double Time, uint8_t lpStatusFlag, uint8_t lpMode){
 	char Text[30];
 	FILE* fp = fopen(NodePtr->LogFilename, "a");
-	sprintf(Text,"%f",Time);
+	sprintf(Text,"%.3f",Time);
 	fprintf(fp,Text);
 	fprintf(fp,",");
 	if(NodePtr->operationalMode == NODE_OPMODE_FULLOPERATONAL){
@@ -223,7 +251,10 @@ void Print_NodeLog(node_t* NodePtr,data_t* DataPtr, double Time, uint8_t lpStatu
 		sprintf(Text,"%d",NodePtr->processedDataBufferSize);
 		fprintf(fp,Text);
 		fprintf(fp,",");
-		sprintf(Text,"%lf",NodePtr->FullConsumption);
+		sprintf(Text,"%d",NodePtr->currentConsumption);
+		fprintf(fp,Text);
+		fprintf(fp,",");
+		sprintf(Text,"%.3lf",NodePtr->FullConsumption);
 		fprintf(fp,Text);
 		fprintf(fp,"\n");
 	}
@@ -236,7 +267,10 @@ void Print_NodeLog(node_t* NodePtr,data_t* DataPtr, double Time, uint8_t lpStatu
 		}
 		fprintf(fp,Text);
 		fprintf(fp,",");
-		sprintf(Text,"%lf",NodePtr->FullConsumption);
+		sprintf(Text,"%d",NodePtr->currentConsumption);
+		fprintf(fp,Text);
+		fprintf(fp,",");
+		sprintf(Text,"%.3lf",NodePtr->FullConsumption);
 		fprintf(fp,Text);
 		fprintf(fp,"\n");
 

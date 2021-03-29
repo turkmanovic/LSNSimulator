@@ -211,6 +211,12 @@ data_t* DATA_RAW_Create(uint32_t Size, data_path_t* Path, uint32_t ProtocolID){
 	}
 	CreatedData->aggregationFlag		= DATA_AGG_RAW;
 	CreatedData->aggreationList			= NULL;
+	CreatedData->EnergyToProcessData 	= 0;
+	CreatedData->EnergyToTransmitData 	= 0;
+	CreatedData->EnergyToReceiveData 	= 0;
+	CreatedData->linkReceiveConsumption	= 0;
+	CreatedData->linkTransmitConsumption= 0;
+	CreatedData->overheadProccesFlag    = 0;
 	return CreatedData;
 }
 /**
@@ -252,6 +258,13 @@ data_t* 		DATA_AGG_Create(data_path_t* Path,uint32_t ProtocolID,double time){
 	if(CreatedData->aggreationList == NULL){
 		return NULL;
 	}
+
+	CreatedData->EnergyToProcessData 	= 0;
+	CreatedData->EnergyToTransmitData 	= 0;
+	CreatedData->EnergyToReceiveData 	= 0;
+	CreatedData->linkReceiveConsumption	= 0;
+	CreatedData->linkTransmitConsumption= 0;
+	CreatedData->overheadProccesFlag    = 0;
 	return CreatedData;
 }
 /**
@@ -276,6 +289,72 @@ uint8_t 		DATA_AGG_AddData(data_t* rootData, data_t* childData){
 	return 0;
 }
 /**
+* @brief Remoe Data from aggregation list
+* @param  rootData		- Pointer to aggregation data structure
+* @param  chilldData	- Pointer to data which wants to be remove from aggregate list
+* @return 0 			- Data is successfully removed from aggregation list
+* @return 1 			- There is a error while remoing data to aggregation list
+*/
+uint8_t 		DATA_AGG_RemoveData(data_t* rootData, data_t* childData){
+	if((rootData->aggregationFlag != DATA_AGG_FULL) || (rootData->aggreationList->numberOfData == 0)) return 2;
+	uint32_t dataPosition = 0;
+	//find data in aggregation list
+	while(dataPosition < rootData->aggreationList->numberOfData){
+		if(rootData->aggreationList->dataList[dataPosition]->ID ==  childData->ID) break;
+		dataPosition++;
+	}
+	if(dataPosition == rootData->aggreationList->numberOfData) return 1;
+	uint32_t counter = dataPosition;
+	while(counter < (rootData->aggreationList->numberOfData-1)){
+		rootData->aggreationList->dataList[counter] = rootData->aggreationList->dataList[counter + 1];
+		counter++;
+	}
+	rootData->aggreationList->numberOfData--;
+	if(rootData->aggreationList->numberOfData > 0) realloc(rootData->aggreationList->dataList,rootData->aggreationList->numberOfData*sizeof(data_t*));
+	return 0;
+}
+
+/**
+* @brief Remoe all data from aggregation list
+* @param  rootData		- Pointer to aggregation data structure
+* @return 0 			- Data is successfully removed from aggregation list
+* @return 1 			- Data isn't in aggregation list
+* @return 2 			- There is a error while removing data to aggregation list
+*/
+uint8_t 		DATA_AGG_RemoveAllData(data_t* rootData){
+	if((rootData->aggregationFlag != DATA_AGG_FULL) || (rootData->aggreationList->numberOfData == 0)) return 2;
+	uint32_t counter = 0;
+	while(counter < rootData->aggreationList->numberOfData){
+		rootData->aggreationList->dataList[counter] = NULL;
+		counter++;
+	}
+	rootData->aggreationList->numberOfData = 0;
+	if(rootData->aggreationList->numberOfData > 0) realloc(rootData->aggreationList->dataList,1*sizeof(data_t*));
+
+	return 0;
+
+
+}
+/**
+* @brief Change data to raw.
+*
+* 		 Before calling this function be sure that all aggregated data are removed
+* 		 from the list by using @func DATA_AGG_RemoveAllData function
+*
+* @param  rootData		- Pointer to aggregation data structure
+* @return 0 			- Aggregated data is successfully changed to RAW data
+* @return 1 			- There is a error while changing data agg type from full agregated to raw
+*/
+uint8_t 		DATA_AGG_ChangeToRAW(data_t* rootData){
+	if((rootData->aggregationFlag != DATA_AGG_FULL) || (rootData->aggreationList->numberOfData > 0)) return 1;
+	free(rootData->aggreationList->dataList);
+	free(rootData->aggreationList);
+	rootData->aggreationList 	= NULL;
+	rootData->aggregationFlag 	= DATA_AGG_RAW;
+	return 0;
+}
+
+/**
 * @brief Check if Data require response and create corresponding response if it is necessary
 *
 *   This function check if protocol assigned to data require response and create response if it is necessary
@@ -284,9 +363,13 @@ uint8_t 		DATA_AGG_AddData(data_t* rootData, data_t* childData){
 * @return 	0 				- Data require response and response is created
 * @return	1 				- Data does not require response
 */
-uint8_t		DATA_CreateResponse(data_t* DataPtr,uint32_t ResponseSize){
+uint8_t		DATA_CreateResponse(data_t* DataPtr,uint32_t ResponseSize, double time){
 	if( (DataPtr->AssignedProtocol->Response == False)) return 1;
 	if((DataPtr->Type != DATA_TYPE_REQUEST)) return 1;
+	if(DataPtr->aggregationFlag == DATA_AGG_FULL){
+		if(DATA_AGG_RemoveAllData(DataPtr) != 0) return DATA_ERROR;
+		if(DATA_AGG_ChangeToRAW(DataPtr) != 0 )return DATA_ERROR;
+	}
 	uint32_t Counter_Start = 0;
 	uint32_t Counter_End = 0;
 	uint32_t Temp;
@@ -302,6 +385,7 @@ uint8_t		DATA_CreateResponse(data_t* DataPtr,uint32_t ResponseSize){
 	DataPtr->Type = DATA_TYPE_RESPONSE;
 	DataPtr->BytesToProcess =ResponseSize;
 	DataPtr->Size =ResponseSize;
+	DataPtr->ElapsedResponseTime = time;
 	DataPtr->State = DATA_STATE_UNITIALIZED;
 	return 0;
 }
@@ -328,6 +412,12 @@ data_status_t	DATA_SetNode(data_t* dataPtr, uint32_t nodeID){
 	}
 	dataPtr->Path->currentIDPossition = counter;
 	dataPtr->Path->currentID = nodeID;
+	counter = 0;
+	if(dataPtr->aggregationFlag == DATA_AGG_FULL){
+		while(counter < dataPtr->aggreationList->numberOfData){
+			if(DATA_SetNode(dataPtr->aggreationList->dataList[counter++], nodeID) != DATA_OK)return NODE_ERROR;
+		}
+	}
 	return DATA_OK;
 }
 

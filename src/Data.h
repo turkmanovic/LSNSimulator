@@ -33,13 +33,16 @@ typedef enum {
 * Data States.
 */
 typedef enum {
-	DATA_STATE_UNITIALIZED,	/*!< Data is created but not initialized */
-	DATA_STATE_CREATED,		/*!< Data is created and initialize */
+	DATA_STATE_UNITIALIZED,		/*!< Data is created but not initialized */
+	DATA_STATE_CREATED,			/*!< Data is created and initialize */
 	DATA_STATE_WAIT,			/*!< Data wait to be processed on node */
-	DATA_STATE_RECEIVED,		/*!< Data is received on node */
-	DATA_STATE_PROCESSED,		/*!< The data is being processed on node */
-	DATA_STATE_SENT,			/*!< Data is sent from node */
-	DATA_STATE_CONSUMED		/*!< Data arrived on destination */
+	DATA_STATE_RECEIVE_START,	/*!< Data is received on node */
+	DATA_STATE_RECEIVE_END,		/*!< Data is received on node */
+	DATA_STATE_PROCESS_START,		/*!< The data is being processed on node */
+	DATA_STATE_PROCESS_END,		/*!< The data is being processed on node */
+	DATA_STATE_TRANSMIT_START,	/*!< Data is sent from node */
+	DATA_STATE_TRANSMIT_END,	/*!< Data is sent from node */
+	DATA_STATE_CONSUMED			/*!< Data arrived on destination */
 }data_state_t;
 
 /**
@@ -117,8 +120,11 @@ typedef struct data_t{
 	data_state_t 	State;					/*!< Current data state */
 	data_type_t  	Type;					/*!< Current data type */
 	protocol_t* 	AssignedProtocol;		/*!< Protocol assigned to data */
+	uint32_t		linkTransmitConsumption;/*!< This information is used during data transmit to determine which link is used to send data*/
+	uint32_t		linkReceiveConsumption; /*!< This information is used during data receie to determine which link is used to send data*/
 	data_type_aggregation_t		aggregationFlag;
 	data_aggregation_list_t*	aggreationList;
+	uint8_t 		overheadProccesFlag; 			/*!< Indicate when data is overhead */
 }data_t;
 
 /**
@@ -164,6 +170,34 @@ data_t* 		DATA_AGG_Create(data_path_t* Path, uint32_t ProtocolID, double time);
 */
 uint8_t 		DATA_AGG_AddData(data_t* rootData, data_t* childData);
 /**
+* @brief Remove Data from aggregation list
+* @param  rootData		- Pointer to aggregation data structure
+* @param  chilldData	- Pointer to data which wants to be remove from aggregate list
+* @return 0 			- Data is successfully removed from aggregation list
+* @return 1 			- Data isn't in aggregation list
+* @return 2 			- There is a error while removing data to aggregation list
+*/
+uint8_t 		DATA_AGG_RemoveData(data_t* rootData, data_t* childData);
+/**
+* @brief Remove all data from aggregation list
+* @param  rootData		- Pointer to aggregation data structure
+* @return 0 			- Data is successfully removed from aggregation list
+* @return 1 			- Data isn't in aggregation list
+* @return 2 			- There is a error while removing data to aggregation list
+*/
+uint8_t 		DATA_AGG_RemoveAllData(data_t* rootData);
+/**
+* @brief Change data to raw.
+*
+* 		 Before calling this function be sure that all aggregated data are removed
+* 		 from the list by using @func DATA_AGG_RemoveAllData function
+*
+* @param  rootData		- Pointer to aggregation data structure
+* @return 0 			- Aggregated data is successfully changed to RAW data
+* @return 1 			- There is a error while changing data agg type from full agregated to raw
+*/
+uint8_t 		DATA_AGG_ChangeToRAW(data_t* rootData);
+/**
 * @brief Return protocol by ID value
 * @param ProtocolID		- Protocol ID
 * @return Protocol* 	- Return pointer to Protocol which ID is sent by parameter ProtocolID
@@ -176,7 +210,7 @@ protocol_t*   	DATA_GetProtocol(uint32_t ProtocolID);
 * @return 	0 				- Data require response and response is created
 * @return	1 				- Data does not require response
 */
-uint8_t			DATA_CreateResponse(data_t* DataPtr,uint32_t ResponseSize);
+uint8_t			DATA_CreateResponse(data_t* DataPtr,uint32_t ResponseSize, double time);
 
 data_status_t	DATA_GetNextNodeID(data_t* dataPtr, uint32_t* nextNodeID);
 

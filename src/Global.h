@@ -20,7 +20,7 @@
 #define Protocols_FileName      "Topology/Protocols.txt"
 
 
-#define CONFIG_NODE_AGG_LEVEL	2
+#define CONFIG_NODE_AGG_LEVEL	0
 
 
 

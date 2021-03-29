@@ -68,6 +68,7 @@ typedef struct {
 	FILE 			*NodeLogFile;  					/*!< Pointer to node file */
 	node_operational_mode_t	operationalMode;		/*!< Current active node operational mode*/
 	uint32_t		agregationLevel;
+	uint32_t		currentConsumption;
 }node_t;
 
 
@@ -90,10 +91,13 @@ void    	NODE_MakeProducerNode(uint32_t NodeId, uint32_t Rate, Boolean Periodic,
 
 
 node_status_t 			NODE_ReceiveData(node_t* NodePtr, data_t* DataPtr);
-node_status_t 			NODE_ReceiveAggData(node_t* NodePtr, data_t* DataPtr);
+node_status_t 			NODE_StartReceiveData(node_t* NodePtr, data_t* DataPtr);
 node_status_t 			NODE_ProcessData(node_t* NodePtr);
+node_status_t 			NODE_StartProcessData(node_t* NodePtr);
 node_status_t 			NODE_ProcessMTUData(node_t* NodePtr);
-node_status_t 			NODE_SendData(node_t* NodePtr);
+node_status_t 			NODE_StartProcessMTUData(node_t* NodePtr);
+node_status_t 			NODE_TransmitData(node_t* NodePtr);
+node_status_t 			NODE_StartTransmitData(node_t* NodePtr);
 
 node_status_t			NODE_GoToLPMode(node_t* NodePtr, double time);
 node_status_t			NODE_WakeFromLPMode(node_t* NodePtr, double time);

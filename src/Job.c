@@ -40,20 +40,38 @@ job_status_t JOB_Process(job_t* JobToProcess){
 				NODE_MakeProducerNode(JobToProcess->ProcessedNode->ID,	JobToProcess->Period, True, JobToProcess->ProcessedData->Size, JobToProcess->ProcessedData->Path->line, JobToProcess->ProcessedData->Path->destinationID,True, JobToProcess->ProcessedData->AssignedProtocol->ID);
 			}
 			break;
-		case JOB_TYPE_PROCESS:
+		case JOB_TYPE_PROCESS_DATA_START:
+			if(NODE_StartProcessData(JobToProcess->ProcessedNode) != NODE_OK){
+				puts("JOB: Error during data processing");
+				return JOB_ERROR;
+			}
+			break;
+		case JOB_TYPE_PROCESS_DATA_END:
 			if(NODE_ProcessData(JobToProcess->ProcessedNode) != NODE_OK){
 				puts("JOB: Error during data processing");
 				return JOB_ERROR;
 			}
 			break;
-		case JOB_TYPE_PROCESS_MTU:
+		case JOB_TYPE_PROCESS_MTU_START:
+			if(NODE_StartProcessMTUData(JobToProcess->ProcessedNode) != NODE_OK){
+				puts("JOB: Error during mtu data processing");
+				return JOB_ERROR;
+			}
+			break;
+		case JOB_TYPE_PROCESS_MTU_END:
 			if(NODE_ProcessMTUData(JobToProcess->ProcessedNode) != NODE_OK){
 				puts("JOB: Error during mtu data processing");
 				return JOB_ERROR;
 			}
 			break;
-		case JOB_TYPE_SEND:
-			if(NODE_SendData(JobToProcess->ProcessedNode) != NODE_OK){
+		case JOB_TYPE_TRANSMIT:
+			if(NODE_TransmitData(JobToProcess->ProcessedNode) != NODE_OK){
+				puts("JOB: Error during data sending");
+				return JOB_ERROR;
+			}
+			break;
+		case JOB_TYPE_TRANSMIT_START:
+			if(NODE_StartTransmitData(JobToProcess->ProcessedNode) != NODE_OK){
 				puts("JOB: Error during data sending");
 				return JOB_ERROR;
 			}
@@ -64,8 +82,8 @@ job_status_t JOB_Process(job_t* JobToProcess){
 				return JOB_ERROR;
 			}
 			break;
-		case JOB_TYPE_RECEIVE_AGG:
-			if(NODE_ReceiveAggData(JobToProcess->ProcessedNode, JobToProcess->ProcessedData) != NODE_OK){
+		case JOB_TYPE_RECEIVE_START:
+			if(NODE_StartReceiveData(JobToProcess->ProcessedNode, JobToProcess->ProcessedData) != NODE_OK){
 				puts("JOB: Error during data receiving");
 				return JOB_ERROR;
 			}

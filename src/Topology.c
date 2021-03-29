@@ -13,13 +13,13 @@
 FILE *	prvTPLG_CONFIG_FILE;
 
 uint8_t prvTPLG_CreateNodes(){
-	uint32_t TempId = 0, AggregationLevel,ReturnSize,MTUProcessOverhead;
+	uint32_t TempId = 0, CompressionLevel, ReturnSize, MTUProcessOverhead, AggLevel;
 	double		TempProcessTime, lpConsumption, activeConsumption;
 	char TempChar;
 	while(1){
-		fscanf(prvTPLG_CONFIG_FILE, "%d%lf%d%d%d%lf%lf", &TempId, &TempProcessTime, &AggregationLevel, &ReturnSize, &MTUProcessOverhead, &activeConsumption, &lpConsumption);
+		fscanf(prvTPLG_CONFIG_FILE, "%d%lf%d%d%d%lf%lf%d", &TempId, &TempProcessTime, &CompressionLevel, &ReturnSize, &MTUProcessOverhead, &activeConsumption, &lpConsumption, &AggLevel);
 		if(TempId == 0) break;
-		if(NODE_Create(TempId, TempProcessTime,AggregationLevel,ReturnSize,MTUProcessOverhead, lpConsumption,activeConsumption,CONFIG_NODE_AGG_LEVEL)==NULL){
+		if(NODE_Create(TempId, TempProcessTime,CompressionLevel,ReturnSize,MTUProcessOverhead, lpConsumption, activeConsumption, AggLevel)==NULL){
 			return 1;
 		}
 		do{
