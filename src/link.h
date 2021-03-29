@@ -28,6 +28,7 @@ typedef struct {
 	uint32_t 	DestinationNodeId;	/*!< ID value of destination Node */
 	uint32_t 	SourceNodeId;		/*!< ID value of current node */
 	link_t*		AssignedLink;		/*!< Link info */
+	Boolean		bussy;
 }connection_t;
 
 uint8_t 			LINK_Init();

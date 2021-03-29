@@ -290,6 +290,13 @@ void    		NODE_MakeProducerNode(uint32_t NodeId, uint32_t Rate, Boolean Periodic
 
 node_status_t 			NODE_StartReceiveData(node_t* NodePtr, data_t* DataPtr){
 	double CurrentTime 	= TBASE_GetTime();
+	//wake up from LP mode
+	if(NODE_GetOperationalMode(NodePtr) != NODE_OPMODE_FULLOPERATONAL){
+		if(NODE_WakeFromLPMode(NodePtr, CurrentTime) != NODE_OK){
+			printf("NODE: Error during wake-up event on node %d\r\n", NodePtr->ID);
+			return NODE_ERROR;
+		}
+	}
 	NodePtr->currentConsumption += DataPtr->linkReceiveConsumption;
 	DataPtr->State				= DATA_STATE_RECEIVE_START;
 	Print_NodeLog(NodePtr, DataPtr, CurrentTime, 0, 0);
@@ -310,6 +317,13 @@ node_status_t 			NODE_ReceiveData(node_t* NodePtr, data_t* DataPtr){
 		return NODE_ERROR;
 	}
 	if(DataPtr->State == DATA_STATE_UNITIALIZED){
+		//wake up from LP mode
+		if(NODE_GetOperationalMode(NodePtr) != NODE_OPMODE_FULLOPERATONAL){
+			if(NODE_WakeFromLPMode(NodePtr, CurrentTime) != NODE_OK){
+				printf("NODE: Error during wake-up event on node %d\r\n", NodePtr->ID);
+				return NODE_ERROR;
+			}
+		}
 		DataPtr->State = DATA_STATE_CREATED;
 		if(DataPtr->Type == DATA_TYPE_REQUEST)DataPtr->CreatedTime = TBASE_GetTime();
 	}
@@ -348,13 +362,7 @@ node_status_t 			NODE_ReceiveData(node_t* NodePtr, data_t* DataPtr){
 		DataPtr->EnergyToProcessData	= ProcessTime*NodePtr->activeConsumption;
 
 		Print_NodeLog(NodePtr, DataPtr, CurrentTime, 0, 0);
-		//wake up from LP mode
-		if(NODE_GetOperationalMode(NodePtr) != NODE_OPMODE_FULLOPERATONAL){
-			if(NODE_WakeFromLPMode(NodePtr, CurrentTime) != NODE_OK){
-				printf("NODE: Error during wake-up event on node %d\r\n", NodePtr->ID);
-				return NODE_ERROR;
-			}
-		}
+
 		NodePtr->Processing     		= True;
 		job_t* 	 StartProcessJob  		= JOB_Create(NodePtr, DataPtr, True, CurrentTime, JOB_TYPE_PROCESS_DATA_START);
 		event_t* StartProcessEvent		= TBASE_CreateEvent(StartProcessJob, CurrentTime, 1);
@@ -423,10 +431,24 @@ node_status_t 			NODE_ProcessData(node_t* NodePtr){
 				event_t* CreatedEvent = TBASE_CreateEvent(CreatedJob, CurrentTime,2);
 				TBASE_AddEvent(CreatedEvent);
 			 }
+
 		 }
 		 else{
 			 NodePtr->processingData->ElapsedResponseTime = TBASE_GetTime() - NodePtr->processingData->ElapsedResponseTime;
 			 Print_NodeLog(NodePtr,NodePtr->processingData, CurrentTime, 0, 0);
+ 			data_t* NextDataToProcess = prvNODE_GetDataFromReceiveWaitingList(NodePtr);
+ 			if(NextDataToProcess!=NULL){
+ 				 job_t* CreatedJob = JOB_Create(NodePtr, NextDataToProcess,False,CurrentTime,JOB_TYPE_RECEIVE);
+ 				 event_t* CreatedEvent = TBASE_CreateEvent(CreatedJob, CurrentTime,0);
+ 				 TBASE_AddEvent(CreatedEvent);
+ 			}
+ 			else{
+ 				//go to low power mode if there is no more data to process
+ 				if(NODE_GoToLPMode(NodePtr, CurrentTime) != NODE_OK){
+ 					printf("NODE: Error during lp mode on node %d\r\n", NodePtr->ID);
+ 					return NODE_ERROR;
+ 				}
+ 			}
 		 }
 		 NodePtr->Processing = False;
 		return NODE_OK;
@@ -496,7 +518,6 @@ node_status_t 			NODE_ProcessData(node_t* NodePtr){
 		}*/
 		}
 		else{
-			//go to low power mode if there is no more data to process
 			data_t* NextDataToProcess = prvNODE_GetDataFromReceiveWaitingList(NodePtr);
 			if(NextDataToProcess!=NULL){
 				 job_t* CreatedJob = JOB_Create(NodePtr, NextDataToProcess,False,CurrentTime,JOB_TYPE_RECEIVE);
@@ -504,6 +525,7 @@ node_status_t 			NODE_ProcessData(node_t* NodePtr){
 				 TBASE_AddEvent(CreatedEvent);
 			}
 			else{
+				//go to low power mode if there is no more data to process
 				NodePtr->currentConsumption	   -= NodePtr->activeConsumption;
 				if(NODE_GoToLPMode(NodePtr, CurrentTime) != NODE_OK){
 					printf("NODE: Error during lp mode on node %d\r\n", NodePtr->ID);
@@ -532,8 +554,8 @@ node_status_t 			NODE_ProcessMTUData(node_t* NodePtr){
 	NodePtr->processingData->Size 			= NodePtr->processingData->Size/NodePtr->compressionLevel;
 	NodePtr->processingData->BytesToProcess =  NodePtr->processingData->Size+NodePtr->processingData->Overhead;
 	double TransferDuration = (NextLink->AssignedLink->NumberOfHops+1)*NodePtr->processingData->BytesToProcess/LINK_GetSpeed(NextLink);
-	NodePtr->processingData->EnergyToTransmitData 	= TransferDuration * NextLink->AssignedLink->TransmitConsumption;
-	NodePtr->processingData->EnergyToReceiveData 	= TransferDuration * NextLink->AssignedLink->ReceiveConsumption;
+	NodePtr->processingData->EnergyToTransmitData 	= TransferDuration*NodePtr->activeConsumption + TransferDuration * NextLink->AssignedLink->TransmitConsumption;
+	NodePtr->processingData->EnergyToReceiveData 	= TransferDuration*NodePtr->activeConsumption + TransferDuration * NextLink->AssignedLink->ReceiveConsumption;
 	NodePtr->processingData->linkTransmitConsumption= NextLink->AssignedLink->TransmitConsumption;
 	NodePtr->processingData->linkReceiveConsumption = NextLink->AssignedLink->ReceiveConsumption;
 	NodePtr->processingData->overheadProccesFlag	= 0;
@@ -560,8 +582,6 @@ node_status_t 			NODE_TransmitData(node_t* NodePtr){
 		double CurrentTime = TBASE_GetTime();
 		data_t* TempDataPtr = NodePtr->processingData;
 		NodePtr->processingData->State = DATA_STATE_TRANSMIT_END;
-		NodePtr->currentConsumption -= NodePtr->processingData->linkReceiveConsumption;
-		NodePtr->processingData->linkReceiveConsumption = 0;
 		NodePtr->FullConsumption += NodePtr->processingData->EnergyToTransmitData;
 		NodePtr->processingData->EnergyToTransmitData = 0;
 		if(NodePtr->processingData->aggregationFlag == DATA_AGG_FULL){
@@ -578,6 +598,7 @@ node_status_t 			NODE_TransmitData(node_t* NodePtr){
 		NodePtr->processingData = NULL;
 		NodePtr->Processing = False;
 		Print_NodeLog(NodePtr,TempDataPtr, CurrentTime, 0, 0);
+		NodePtr->currentConsumption -= TempDataPtr->linkReceiveConsumption;
 		//check is there more data to process
 		data_t* NextDataToProcess = prvNODE_GetDataFromReceiveWaitingList(NodePtr);
 		if(NextDataToProcess!=NULL){
@@ -622,18 +643,23 @@ connection_t*   	NODE_GetNextLink(node_t* NodePtr){
 
 node_status_t		NODE_GoToLPMode(node_t* NodePtr, double time){
 	if(NodePtr->operationalMode == NODE_OPMODE_LOWPOWER) return NODE_ERROR;
+	//cant go to LP if there is no finished actions
+	NodePtr->currentConsumption	   -= NodePtr->activeConsumption;
+	if(	NodePtr->currentConsumption	!= NodePtr->lpConsumption){
+		NodePtr->currentConsumption	   += NodePtr->activeConsumption;
+		return NODE_OK;
+	}
 	NodePtr->operationalMode = NODE_OPMODE_LOWPOWER;
 	NodePtr->lpEnterTime	 =	time;
-	NodePtr->currentConsumption	   = NodePtr->lpConsumption;
 	Print_NodeLog(NodePtr,	NULL, time, 1, 1);
 	return NODE_OK;
 }
 node_status_t		NODE_WakeFromLPMode(node_t* NodePtr, double time){
 	if(NodePtr->operationalMode == NODE_OPMODE_FULLOPERATONAL) return NODE_ERROR;
 	NodePtr->FullConsumption+= (time - NodePtr->lpEnterTime)*NodePtr->lpConsumption;
-	NodePtr->operationalMode = NODE_OPMODE_FULLOPERATONAL;
-	NodePtr->currentConsumption	   = NodePtr->activeConsumption;
 	Print_NodeLog(NodePtr,	NULL, time, 1, 0);
+	NodePtr->currentConsumption	   += NodePtr->activeConsumption;
+	NodePtr->operationalMode = NODE_OPMODE_FULLOPERATONAL;
 	return NODE_OK;
 }
 node_operational_mode_t	NODE_GetOperationalMode(node_t* NodePtr){

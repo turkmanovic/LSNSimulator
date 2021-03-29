@@ -18,7 +18,7 @@ void JOB_Init(){
 	prvJOB_ID_COUNTER = 0;
 }
 
-job_t* JOB_Create(node_t* AssignedNodePtr, data_t* AssignedDataPtr, Boolean Periodic, uint32_t Rate,job_type_t Type){
+job_t* JOB_Create(node_t* AssignedNodePtr, data_t* AssignedDataPtr, Boolean Periodic, double Rate,job_type_t Type){
 	job_t* CreatedJob 			= malloc(sizeof(job_t));
 	CreatedJob->ID 				= prvJOB_ID_COUNTER++;
 	CreatedJob->Period 			= Rate;

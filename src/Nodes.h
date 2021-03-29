@@ -68,7 +68,7 @@ typedef struct {
 	FILE 			*NodeLogFile;  					/*!< Pointer to node file */
 	node_operational_mode_t	operationalMode;		/*!< Current active node operational mode*/
 	uint32_t		agregationLevel;
-	uint32_t		currentConsumption;
+	double			currentConsumption;
 }node_t;
 
 

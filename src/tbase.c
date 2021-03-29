@@ -46,10 +46,15 @@ uint8_t TBASE_AddEvent(event_t* EventToProcess){
 			if(((CurrentListElement->Time == EventToProcess->Time) && (CurrentListElement->Priority <= EventToProcess->Priority))|| (CurrentListElement->Time > EventToProcess->Time)){
 				if(CurrentListElement->PreviousEvent == NULL){
 					if(prvTBASE_PROCESSING == 1){
-						CurrentListElement->NextEvent->PreviousEvent = EventToProcess;
-						EventToProcess->NextEvent = CurrentListElement->NextEvent;
-						EventToProcess->PreviousEvent = CurrentListElement;
-						CurrentListElement->NextEvent = EventToProcess;
+						if(CurrentListElement->NextEvent == NULL){
+							CurrentListElement->NextEvent = EventToProcess;
+						}
+						else{
+							CurrentListElement->NextEvent->PreviousEvent = EventToProcess;
+							EventToProcess->NextEvent = CurrentListElement->NextEvent;
+							EventToProcess->PreviousEvent = CurrentListElement;
+							CurrentListElement->NextEvent = EventToProcess;
+						}
 					}
 					else{
 						CurrentListElement->PreviousEvent = EventToProcess;

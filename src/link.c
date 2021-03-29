@@ -108,6 +108,7 @@ connection_t*    	LINK_CreateConnection(uint32_t DestinationNodeId, uint32_t Sou
 	ReturnConnection->SourceNodeId = SourceNodeId;
 	ReturnConnection->DestinationNodeId = DestinationNodeId;
 	ReturnConnection->AssignedLink = LINK_GetByID(LinkId);
+	ReturnConnection->bussy		   = False;
 	if(ReturnConnection->AssignedLink == NULL){
 		sprintf(TempString,"%d",LinkId);
 		LOG_ERROR_Print(ERROR_LINK_1,TempString);

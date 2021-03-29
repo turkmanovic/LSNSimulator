@@ -33,7 +33,7 @@ uint8_t prvTPLG_CreateConnections(){
 	double  CurrentNodeTime;
 	char TempChar;
 	while(1){
-		fscanf(prvTPLG_CONFIG_FILE, "%d%lf%d%d%d", &CurrentNodeId, &CurrentNodeTime,&a,&b,&b);
+		fscanf(prvTPLG_CONFIG_FILE, "%d%lf%d%d%d%d%d%d", &CurrentNodeId, &CurrentNodeTime,&a,&b,&b,&b,&b,&b);
 		if(CurrentNodeId == 0) break;
 		TempChar = (char)fgetc(prvTPLG_CONFIG_FILE);
 		while(TempChar != ';'){

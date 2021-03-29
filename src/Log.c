@@ -191,13 +191,13 @@ void Print_DataLog(data_t* DataPtr,FILE* FileToWrite,double Time){
 			if(DataPtr->AssignedProtocol->Response == True){
 				if(DataPtr->Type == DATA_TYPE_RESPONSE){
 					DataElapsedTimeFile = fopen(ElapsedTimeLog_FileName,"a");
-					fprintf(DataElapsedTimeFile,"%d,%.3lf,%.3lf,%.3lf,%.3lf\n",DataPtr->ID,DataPtr->CreatedTime,DataPtr->ElapsedRequestTime, DataPtr->ElapsedResponseTime,DataPtr->ElapsedRequestTime + DataPtr->ElapsedResponseTime);
+					fprintf(DataElapsedTimeFile,"%d,%lf,%lf,%lf,%lf\n",DataPtr->ID,DataPtr->CreatedTime,DataPtr->ElapsedRequestTime, DataPtr->ElapsedResponseTime,DataPtr->ElapsedRequestTime + DataPtr->ElapsedResponseTime);
 					fclose(DataElapsedTimeFile);
 				}
 			}
 			else{
 				DataElapsedTimeFile = fopen(ElapsedTimeLog_FileName,"a");
-				fprintf(DataElapsedTimeFile,"%d,%lf,%lf,%lf,%.3lf\n",DataPtr->ID,DataPtr->CreatedTime, DataPtr->ElapsedRequestTime, 0.0, DataPtr->ElapsedRequestTime);
+				fprintf(DataElapsedTimeFile,"%d,%lf,%lf,%lf,%lf\n",DataPtr->ID,DataPtr->CreatedTime, DataPtr->ElapsedRequestTime, 0.0, DataPtr->ElapsedRequestTime);
 				fclose(DataElapsedTimeFile);
 			}
 			break;
@@ -217,7 +217,7 @@ void Print_DataLog(data_t* DataPtr,FILE* FileToWrite,double Time){
 void Print_NodeLog(node_t* NodePtr,data_t* DataPtr, double Time, uint8_t lpStatusFlag, uint8_t lpMode){
 	char Text[30];
 	FILE* fp = fopen(NodePtr->LogFilename, "a");
-	sprintf(Text,"%.3f",Time);
+	sprintf(Text,"%lf",Time);
 	fprintf(fp,Text);
 	fprintf(fp,",");
 	if(NodePtr->operationalMode == NODE_OPMODE_FULLOPERATONAL){
@@ -251,10 +251,10 @@ void Print_NodeLog(node_t* NodePtr,data_t* DataPtr, double Time, uint8_t lpStatu
 		sprintf(Text,"%d",NodePtr->processedDataBufferSize);
 		fprintf(fp,Text);
 		fprintf(fp,",");
-		sprintf(Text,"%d",NodePtr->currentConsumption);
+		sprintf(Text,"%lf",NodePtr->currentConsumption);
 		fprintf(fp,Text);
 		fprintf(fp,",");
-		sprintf(Text,"%.3lf",NodePtr->FullConsumption);
+		sprintf(Text,"%lf",NodePtr->FullConsumption);
 		fprintf(fp,Text);
 		fprintf(fp,"\n");
 	}
@@ -270,7 +270,7 @@ void Print_NodeLog(node_t* NodePtr,data_t* DataPtr, double Time, uint8_t lpStatu
 		sprintf(Text,"%d",NodePtr->currentConsumption);
 		fprintf(fp,Text);
 		fprintf(fp,",");
-		sprintf(Text,"%.3lf",NodePtr->FullConsumption);
+		sprintf(Text,"%lf",NodePtr->FullConsumption);
 		fprintf(fp,Text);
 		fprintf(fp,"\n");
 

@@ -120,8 +120,8 @@ typedef struct data_t{
 	data_state_t 	State;					/*!< Current data state */
 	data_type_t  	Type;					/*!< Current data type */
 	protocol_t* 	AssignedProtocol;		/*!< Protocol assigned to data */
-	uint32_t		linkTransmitConsumption;/*!< This information is used during data transmit to determine which link is used to send data*/
-	uint32_t		linkReceiveConsumption; /*!< This information is used during data receie to determine which link is used to send data*/
+	double		linkTransmitConsumption;/*!< This information is used during data transmit to determine which link is used to send data*/
+	double		linkReceiveConsumption; /*!< This information is used during data receie to determine which link is used to send data*/
 	data_type_aggregation_t		aggregationFlag;
 	data_aggregation_list_t*	aggreationList;
 	uint8_t 		overheadProccesFlag; 			/*!< Indicate when data is overhead */

@@ -38,7 +38,7 @@ typedef enum{
 typedef struct Job{
 	uint32_t 	ID;/*!<Unique ID assigned at Job creation */
 	Boolean 	Periodic;/*!< Indicate if job is periodic */
-	uint32_t 	Period;/*!< If Job is periodic, this value represent Job rate, otherwise this
+	double 	Period;/*!< If Job is periodic, this value represent Job rate, otherwise this
 	 	 	 	 	 	 parameter is not important*/
     data_t*  	ProcessedData;/*!< Data assigned to Job */
     node_t*  	ProcessedNode;/*!< Pointer to Node over which action must be taken */
@@ -46,7 +46,7 @@ typedef struct Job{
 }job_t;
 
 void 			JOB_Init();
-job_t* 			JOB_Create(node_t* AssignedNodePtr, data_t* AssignedDataPtr, Boolean Periodic, uint32_t Rate,job_type_t Type);
+job_t* 			JOB_Create(node_t* AssignedNodePtr, data_t* AssignedDataPtr, Boolean Periodic, double Rate,job_type_t Type);
 job_status_t 	JOB_Process(job_t* JobToProcess);
 
 #endif /* JOB_H_ */
