@@ -12,7 +12,6 @@
 
 
 
-
 typedef struct {
 	uint32_t    ID;					/*!< Unique number value */
 	double		Speed;				/*!< Link speed */
@@ -23,18 +22,27 @@ typedef struct {
 	double		TransmitConsumption;	/*!< Current needed to send data*/
 	char		LinkName[30];		/*!< Link name */
 }link_t;
+
+
+typedef struct node_t node_t;
+
+
 typedef struct {
 	uint32_t    ID;					/*!< Unique connection value */
-	uint32_t 	DestinationNodeId;	/*!< ID value of destination Node */
-	uint32_t 	SourceNodeId;		/*!< ID value of current node */
+	node_t* 	node1;				/*!< ID value of destination Node */
+	node_t* 	node2;				/*!< ID value of current node */
 	link_t*		AssignedLink;		/*!< Link info */
 	Boolean		bussy;
+	data_t*		currentTransferData;
 }connection_t;
 
 uint8_t 			LINK_Init();
-connection_t*    	LINK_CreateConnection(uint32_t DestinationNodeId, uint32_t SourceNodeId, uint32_t LinkId);
 link_t*   			LINK_GetByID(uint32_t LinkID);
 double          	LINK_GetSpeed(connection_t* ConnectionPtr);
+
+
+connection_t*    	CONNECTION_Create(node_t* node1, node_t* node2, uint32_t LinkId);
+connection_t*		CONNECTION_GetTwoNodesConnection(node_t* node1, node_t* node2);
 
 
 

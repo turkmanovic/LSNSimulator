@@ -216,6 +216,7 @@ data_t* DATA_RAW_Create(uint32_t Size, data_path_t* Path, uint32_t ProtocolID){
 	CreatedData->EnergyToReceiveData 	= 0;
 	CreatedData->linkReceiveConsumption	= 0;
 	CreatedData->linkTransmitConsumption= 0;
+	CreatedData->transferStartTime		= 0;
 	CreatedData->overheadProccesFlag    = 0;
 	return CreatedData;
 }
@@ -264,6 +265,7 @@ data_t* 		DATA_AGG_Create(data_path_t* Path,uint32_t ProtocolID,double time){
 	CreatedData->EnergyToReceiveData 	= 0;
 	CreatedData->linkReceiveConsumption	= 0;
 	CreatedData->linkTransmitConsumption= 0;
+	CreatedData->transferStartTime		= 0;
 	CreatedData->overheadProccesFlag    = 0;
 	return CreatedData;
 }

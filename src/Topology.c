@@ -38,7 +38,7 @@ uint8_t prvTPLG_CreateConnections(){
 		TempChar = (char)fgetc(prvTPLG_CONFIG_FILE);
 		while(TempChar != ';'){
 			fscanf(prvTPLG_CONFIG_FILE, "%d-%d",&AdjacentNodeId, &TempLinkId);
-			if(NODE_LinkToNode(CurrentNodeId,AdjacentNodeId,TempLinkId)!=0) return 1;
+			if(NODE_LinkNodes(CurrentNodeId,AdjacentNodeId,TempLinkId)!=0) return 1;
 			TempChar = (char)fgetc(prvTPLG_CONFIG_FILE);
 		}
 		do{

@@ -14,6 +14,8 @@
 uint32_t        prvLINK_CONNECTION_NUMBERS;
 uint32_t        prvLINK_NUMBERS;
 
+connection_t**  prvCONNECTION_LIST;
+
 FILE 			*LinkFile;
 link_t** 		DefinedLinks;
 uint32_t 		Links;
@@ -93,27 +95,74 @@ uint8_t LINK_Init(){
 	if(prvLINK_Parse()!=0){
 		return 1;
 	}
+	prvCONNECTION_LIST = malloc(sizeof(connection_t*));
+	prvLINK_CONNECTION_NUMBERS = 0;;
 	return 0;
 }
 
-connection_t*    	LINK_CreateConnection(uint32_t DestinationNodeId, uint32_t SourceNodeId, uint32_t LinkId){
-	connection_t* ReturnConnection = NULL;
-	char TempString[30];
-	ReturnConnection = malloc(sizeof(connection_t));
-	if(ReturnConnection == NULL){
-		LOG_ERROR_Print(ERROR_ALLOCATING_0,"Link Allocation");
-		return NULL;
+connection_t*		CONNECTION_GetTwoNodesConnection(node_t* node1, node_t* node2){
+	if(node1->connectionNumber == 0 || node2->connectionNumber == 0) return NULL;
+	uint32_t counter = 0;
+	while(counter < node1->connectionNumber){
+		if(((node1->connections[counter]->node1->ID == node2->ID && node1->connections[counter]->node2->ID == node1->ID) ||
+				(node1->connections[counter]->node1->ID == node1->ID && node1->connections[counter]->node2->ID == node2->ID))){
+			return node1->connections[counter];
+		}
+		counter++;
 	}
-	ReturnConnection->ID = prvLINK_CONNECTION_NUMBERS++;
-	ReturnConnection->SourceNodeId = SourceNodeId;
-	ReturnConnection->DestinationNodeId = DestinationNodeId;
-	ReturnConnection->AssignedLink = LINK_GetByID(LinkId);
-	ReturnConnection->bussy		   = False;
-	if(ReturnConnection->AssignedLink == NULL){
+	counter = 0;
+	while(counter < node2->connectionNumber){
+		if(((node2->connections[counter]->node1->ID == node2->ID && node2->connections[counter]->node2->ID == node1->ID) ||
+				(node2->connections[counter]->node1->ID == node1->ID && node2->connections[counter]->node2->ID == node2->ID))){
+			return node2->connections[counter];
+		}
+		counter++;
+	}
+	return NULL;
+}
+connection_t*    	CONNECTION_Create(node_t* node1, node_t* node2, uint32_t LinkId){
+	char TempString[30];
+//	ReturnConnection = malloc(sizeof(connection_t));
+//	if(ReturnConnection == NULL){
+//		LOG_ERROR_Print(ERROR_ALLOCATING_0,"Link Allocation");
+//		return NULL;
+//	}
+//	ReturnConnection->ID = prvLINK_CONNECTION_NUMBERS++;
+//	ReturnConnection->SourceNodeId = SourceNodeId;
+//	ReturnConnection->DestinationNodeId = DestinationNodeId;
+//	ReturnConnection->AssignedLink = LINK_GetByID(LinkId);
+//	ReturnConnection->bussy		   = False;
+//	if(ReturnConnection->AssignedLink == NULL){
+//		sprintf(TempString,"%d",LinkId);
+//		LOG_ERROR_Print(ERROR_LINK_1,TempString);
+//		free(ReturnConnection);
+//		return NULL;
+//	}
+	//Check if connection already exists
+	uint32_t counter = 0;
+	while(counter < prvLINK_CONNECTION_NUMBERS){
+		if((prvCONNECTION_LIST[counter]->node1->ID == node1->ID && prvCONNECTION_LIST[counter]->node2->ID == node2->ID) ||
+				(prvCONNECTION_LIST[counter]->node2->ID == node1->ID && prvCONNECTION_LIST[counter]->node1->ID == node2->ID)){
+			return prvCONNECTION_LIST[counter];
+		}
+		counter++;
+	}
+	//if there is no connection, create new connection
+	prvCONNECTION_LIST = realloc(prvCONNECTION_LIST, (prvLINK_CONNECTION_NUMBERS+1)*sizeof(connection_t*));
+	prvCONNECTION_LIST[prvLINK_CONNECTION_NUMBERS] = malloc(sizeof(connection_t));
+	prvCONNECTION_LIST[prvLINK_CONNECTION_NUMBERS]->ID = prvLINK_CONNECTION_NUMBERS;
+	prvCONNECTION_LIST[prvLINK_CONNECTION_NUMBERS]->node1 = node1;
+	prvCONNECTION_LIST[prvLINK_CONNECTION_NUMBERS]->node2 = node2;
+	prvCONNECTION_LIST[prvLINK_CONNECTION_NUMBERS]->currentTransferData = NULL;
+	prvCONNECTION_LIST[prvLINK_CONNECTION_NUMBERS]->bussy = False;
+	prvCONNECTION_LIST[prvLINK_CONNECTION_NUMBERS]->AssignedLink = LINK_GetByID(LinkId);
+	if(prvCONNECTION_LIST[prvLINK_CONNECTION_NUMBERS]->AssignedLink == NULL){
 		sprintf(TempString,"%d",LinkId);
 		LOG_ERROR_Print(ERROR_LINK_1,TempString);
-		free(ReturnConnection);
+		free(prvCONNECTION_LIST[prvLINK_CONNECTION_NUMBERS]);
 		return NULL;
 	}
-	return ReturnConnection;
+	prvLINK_CONNECTION_NUMBERS+=1;
+
+	return prvCONNECTION_LIST[prvLINK_CONNECTION_NUMBERS - 1];
 }

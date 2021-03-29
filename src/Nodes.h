@@ -37,7 +37,7 @@ typedef enum{
 }node_operational_mode_t;
 
 
-typedef struct {
+typedef struct node_t{
 	uint32_t 		ID;								/*!< Unique Node value */
 	double 			ProcessTime;					/*!< SData processing speed */
 	Boolean 		Processing; 					/*!< Node busy indicator */
@@ -62,7 +62,8 @@ typedef struct {
 	double			activeConsumption;				/*!< Consumption of node while it is active mode(in mA)*/
 	double 			FullConsumption;				/*!< Full dissipation on node */
 	double			lpEnterTime;					/*!< Time stamp when node enter in LP mode*/
-	connection_t** 	AdjacentNodes; 					/*!< List of all adjacent connection */
+	uint32_t		connectionNumber;
+	connection_t** 	connections; 					/*!< List of all adjacent connection */
 	uint32_t 		compressionLevel; 				/*!< Aggregation Level */
 	char			LogFilename[NODE_FILENAME_SIZE];
 	FILE 			*NodeLogFile;  					/*!< Pointer to node file */
@@ -85,7 +86,7 @@ void 	NODE_Init();
 */
 node_t*		NODE_Create(uint32_t NodeId, double ProcessTime, uint32_t CompressionLevel, uint32_t ReturnSize,uint32_t MTUProcessOverhead, double lpConsumption, double activeConsumption, uint32_t AggregationLevel);
 node_t*   	NODE_GetById(uint32_t NodeId);
-uint8_t		NODE_LinkToNode(uint32_t Node1Id, uint32_t Node2Id,uint32_t LinkID);
+uint8_t		NODE_LinkNodes(uint32_t Node1Id, uint32_t Node2Id,uint32_t LinkID);
 
 void    	NODE_MakeProducerNode(uint32_t NodeId, uint32_t Rate, Boolean Periodic,uint32_t Size, uint32_t* PathLine,uint32_t DestinationId,	Boolean RelativeFlag,	uint32_t ProtocolID);
 
@@ -102,11 +103,12 @@ node_status_t 			NODE_StartTransmitData(node_t* NodePtr);
 node_status_t			NODE_GoToLPMode(node_t* NodePtr, double time);
 node_status_t			NODE_WakeFromLPMode(node_t* NodePtr, double time);
 node_operational_mode_t	NODE_GetOperationalMode(node_t* NodePtr);
+connection_t*			NODE_FindConnection(node_t* NodePtr, uint32_t connectionID);
 
 
 
 
-connection_t*   NODE_GetNextLink(node_t* NodePtr);
+//connection_t*   NODE_GetNextLink(node_t* NodePtr);
 
 
 #endif /* NODES_H_ */

@@ -125,6 +125,7 @@ typedef struct data_t{
 	data_type_aggregation_t		aggregationFlag;
 	data_aggregation_list_t*	aggreationList;
 	uint8_t 		overheadProccesFlag; 			/*!< Indicate when data is overhead */
+	double			transferStartTime;
 }data_t;
 
 /**
