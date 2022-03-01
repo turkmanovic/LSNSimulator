@@ -1,9 +1,9 @@
 Debug/src
 Debug/*.exe
 Debug/*.mk
-Log/Nodes/*
-Log/Process/*
+Log/Nodes/
 Grafici/
 html/
 DoxyGenInstallDir/
 man/
+*.exe
