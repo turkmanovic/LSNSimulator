@@ -15,11 +15,11 @@ FILE *	prvTPLG_CONFIG_FILE;
 uint8_t prvTPLG_CreateNodes(){
 	uint32_t TempId = 0, CompressionLevel, ReturnSize, MTUProcessOverhead, AggLevel;
 	double		TempProcessTime, lpConsumption, activeConsumption;
-	char TempChar;
+	char TempChar, nodeType;
 	while(1){
-		fscanf(prvTPLG_CONFIG_FILE, "%d%lf%d%d%d%lf%lf%d", &TempId, &TempProcessTime, &CompressionLevel, &ReturnSize, &MTUProcessOverhead, &activeConsumption, &lpConsumption, &AggLevel);
+		fscanf(prvTPLG_CONFIG_FILE, "%d %c %lf %d %d %d %lf %lf %d", &TempId, &nodeType, &TempProcessTime, &CompressionLevel, &ReturnSize, &MTUProcessOverhead, &activeConsumption, &lpConsumption, &AggLevel);
 		if(TempId == 0) break;
-		if(NODE_Create(TempId, TempProcessTime,CompressionLevel,ReturnSize,MTUProcessOverhead, lpConsumption, activeConsumption, AggLevel)==NULL){
+		if(NODE_Create(TempId, TempProcessTime,CompressionLevel,ReturnSize,MTUProcessOverhead, lpConsumption, activeConsumption, AggLevel, nodeType)==NULL){
 			return 1;
 		}
 		do{
@@ -31,12 +31,18 @@ uint8_t prvTPLG_CreateNodes(){
 uint8_t prvTPLG_CreateConnections(){
 	uint32_t CurrentNodeId = 0, AdjacentNodeId ,TempLinkId,a,b;
 	double  CurrentNodeTime;
-	char TempChar;
+	char TempChar = 0;
 	while(1){
-		fscanf(prvTPLG_CONFIG_FILE, "%d%lf%d%d%d%d%d%d", &CurrentNodeId, &CurrentNodeTime,&a,&b,&b,&b,&b,&b);
-		if(CurrentNodeId == 0) break;
-		TempChar = (char)fgetc(prvTPLG_CONFIG_FILE);
+		fscanf(prvTPLG_CONFIG_FILE, "%d",&CurrentNodeId);
 		while(TempChar != ';'){
+			TempChar = (char)fgetc(prvTPLG_CONFIG_FILE);
+			if(TempChar == -1) return 0;
+		}
+		TempChar = 0;
+		while(TempChar != ';'){
+			if(CurrentNodeId == 102){
+				puts("102");
+			}
 			fscanf(prvTPLG_CONFIG_FILE, "%d-%d",&AdjacentNodeId, &TempLinkId);
 			if(NODE_LinkNodes(CurrentNodeId,AdjacentNodeId,TempLinkId)!=0) return 1;
 			TempChar = (char)fgetc(prvTPLG_CONFIG_FILE);
@@ -61,6 +67,10 @@ uint8_t prvTPLG_CreateDataLink(){
 		    Periodic = False;
 			fscanf(prvTPLG_CONFIG_FILE, "%d", &TempId);
 			if(TempId == 0) break;
+			do{
+				TempChar = (char)fgetc(prvTPLG_CONFIG_FILE);
+			}while(TempChar != ';') ;
+			TempChar = 0;
 			do{
 				TempChar = (char)fgetc(prvTPLG_CONFIG_FILE);
 			}while(TempChar != ';') ;

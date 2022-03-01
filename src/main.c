@@ -29,7 +29,7 @@ int main(void) {
 	LINK_Init();
 	TPLG_Init();
 	puts("Simulation start");
-    if(TBASE_Start(999) != TBASE_OK){
+    if(TBASE_Start(1000000) != TBASE_OK){
     	puts("Simulation failed");
     }
     else{

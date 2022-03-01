@@ -37,7 +37,15 @@ job_status_t JOB_Process(job_t* JobToProcess){
 				return JOB_ERROR;
 			}
 			if(JobToProcess->Periodic == True){
-				NODE_MakeProducerNode(JobToProcess->ProcessedNode->ID,	JobToProcess->Period, True, JobToProcess->ProcessedData->Size, JobToProcess->ProcessedData->Path->line, JobToProcess->ProcessedData->Path->destinationID,True, JobToProcess->ProcessedData->AssignedProtocol->ID);
+				NODE_MakeProducerNode(JobToProcess->ProcessedNode->ID,
+						JobToProcess->Period,
+						True,
+						JobToProcess->ProcessedData->Size,
+						JobToProcess->ProcessedData->Path->line,
+						JobToProcess->ProcessedData->Path->destinationID,
+						True,
+						JobToProcess->ProcessedData->AssignedProtocol->ID);
+
 			}
 			break;
 		case JOB_TYPE_PROCESS_DATA_START:

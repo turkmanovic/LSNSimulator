@@ -34,6 +34,9 @@ typedef struct {
 	link_t*		AssignedLink;		/*!< Link info */
 	Boolean		bussy;
 	data_t*		currentTransferData;
+	uint32_t	countingAccess;		/*!< Just for testing check how many times node try to acess busy link*/
+	double		transferStartTime;
+	double		transferEndTime;
 }connection_t;
 
 uint8_t 			LINK_Init();

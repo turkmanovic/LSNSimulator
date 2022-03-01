@@ -42,6 +42,8 @@ typedef enum {
 	DATA_STATE_PROCESS_END,		/*!< The data is being processed on node */
 	DATA_STATE_TRANSMIT_START,	/*!< Data is sent from node */
 	DATA_STATE_TRANSMIT_END,	/*!< Data is sent from node */
+	DATA_STATE_TRANSMIT_SUSPENDED,	/*!< Data is sent from node */
+	DATA_STATE_TRANSMIT_CONTINUE,	/*!< Data is sent from node */
 	DATA_STATE_CONSUMED			/*!< Data arrived on destination */
 }data_state_t;
 
@@ -125,7 +127,8 @@ typedef struct data_t{
 	data_type_aggregation_t		aggregationFlag;
 	data_aggregation_list_t*	aggreationList;
 	uint8_t 		overheadProccesFlag; 			/*!< Indicate when data is overhead */
-	double			transferStartTime;
+	data_path_t* 	finalPath;					/*!< Used in case of aggregation data */
+	uint8_t			dataChangedToRow;
 }data_t;
 
 /**
@@ -143,6 +146,22 @@ uint8_t 		DATA_Init();
 */
 data_path_t* 	DATA_PATH_Create(uint32_t DestinationId, uint32_t* PathLine);
 /**
+* @brief Create DataPath from current position until the end of path
+* @param DestinationId 	- Destination Node ID
+* @param PathLine 		- Array which stores Nodes id on data path
+* @return DataPath 		- DataPath is successfully created
+* @return NULL 			- DataPath creation fault
+*/
+data_path_t* 	DATA_PATH_CreateEndPath(data_path_t* path);
+/**
+* @brief Create DataPath from current position until the end of path
+* @param DestinationId 	- Destination Node ID
+* @param PathLine 		- Array which stores Nodes id on data path
+* @return DataPath 		- DataPath is successfully created
+* @return NULL 			- DataPath creation fault
+*/
+uint8_t 	DATA_PATH_AddNextNode(data_path_t* path, uint32_t nextNodeId);
+/**
 * @brief Create Raw Data structure and initialize it for use
 * @param Size		 	- Data size in bytes
 * @param Path 			- Previously created DataPath
@@ -153,13 +172,14 @@ data_path_t* 	DATA_PATH_Create(uint32_t DestinationId, uint32_t* PathLine);
 data_t* 		DATA_RAW_Create(uint32_t Size, data_path_t* Path, uint32_t ProtocolID);
 /**
 * @brief Create Aggregation Data structure and initialize it for use
-* @param Path 			- Previously created DataPath
+* @param Path 			- Previously created DataPath to the next node
 * @param ProtocolId 	- Protocol ID value assigned to data
 * @param time 			- Timestamp when aggregation data is created
+* @param FinalPath		- Path to final node in aggregation data
 * @return Data* 		- Return pointer to data if creation was successful
 * @return NULL 			- If creation wasn't successful
 */
-data_t* 		DATA_AGG_Create(data_path_t* Path, uint32_t ProtocolID, double time);
+data_t* 		DATA_AGG_Create(data_path_t* Path, uint32_t ProtocolID, data_path_t* FinalPath,double time);
 /**
 * @brief Add Data to aggregation list
 * @param  rootData		- Pointer to aggregation data structure
@@ -179,6 +199,15 @@ uint8_t 		DATA_AGG_AddData(data_t* rootData, data_t* childData);
 * @return 2 			- There is a error while removing data to aggregation list
 */
 uint8_t 		DATA_AGG_RemoveData(data_t* rootData, data_t* childData);
+/**
+* @brief Remove Data from aggregation list
+* @param  rootData		- Pointer to aggregation data structure
+* @param  chilldData	- Pointer to data which wants to be remove from aggregate list
+* @return 0 			- Data is successfully removed from aggregation list
+* @return 1 			- Data isn't in aggregation list
+* @return 2 			- There is a error while removing data to aggregation list
+*/
+uint8_t 		DATA_AGG_AddNextNodeOnPath(data_t* data, uint32_t nodeID);
 /**
 * @brief Remove all data from aggregation list
 * @param  rootData		- Pointer to aggregation data structure

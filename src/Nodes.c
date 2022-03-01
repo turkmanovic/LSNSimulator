@@ -101,6 +101,19 @@ node_status_t	prvNODE_PutDataToProcessedList(node_t* NodePtr, data_t* DataPtr){
 	data_t* dataToAdd = NULL;
 	data_t*	tmpData	= NULL;
 	if(NodePtr->agregationLevel == 0 || NodePtr->processedDataBufferSize == 0){
+		if(NodePtr->Type == NODE_TYPE_INTERFACE && DataPtr->aggregationFlag == DATA_AGG_FULL){
+			if(DataPtr->Path->destinationID == NodePtr->ID){
+				if((DataPtr->finalPath->currentIDPossition + 1) > DataPtr->finalPath->numberOfNodesOnPath){
+					return NODE_ERROR;
+				}
+				if(DATA_AGG_AddNextNodeOnPath(DataPtr,DataPtr->finalPath->line[DataPtr->finalPath->currentIDPossition + 1]) != 0) return NODE_ERROR;
+			}
+			uint32_t counter = 0;
+			while(counter < DataPtr->aggreationList->numberOfData){
+				DataPtr->aggreationList->dataList[counter]->State = DATA_STATE_PROCESS_END;
+				counter++;
+			}
+		}
 		//if there is no aggregation just add data to this list
 		dataToAdd = DataPtr;
 	}
@@ -113,8 +126,9 @@ node_status_t	prvNODE_PutDataToProcessedList(node_t* NodePtr, data_t* DataPtr){
 				uint32_t* path = malloc(2*sizeof(uint32_t));
 				path[0] = DataPtr->Path->line[DataPtr->Path->currentIDPossition];
 				path[1] = DataPtr->Path->line[DataPtr->Path->currentIDPossition + 1];
-				data_path_t* dataPath 	= DATA_PATH_Create(path[1], path);
-				data_t*		 data		= DATA_AGG_Create(dataPath, DataPtr->AssignedProtocol->ID, TBASE_GetTime());
+				data_path_t* aggDataPath 	= DATA_PATH_Create(path[1], path);
+				data_path_t* aggDataEndPath = DATA_PATH_CreateEndPath(DataPtr->Path);
+				data_t*		 data		= DATA_AGG_Create(aggDataPath, DataPtr->AssignedProtocol->ID, aggDataEndPath, TBASE_GetTime());
 				if(data == NULL) return NODE_ERROR;
 				//aggregate data
 				if( DATA_AGG_AddData(data, tmpData) != DATA_OK) return NODE_ERROR;
@@ -168,7 +182,7 @@ void 			NODE_Init(){
 	prvNODE_COUNTER		= 0;
 	prvNODE_ID			= malloc(1*sizeof(uint32_t));
 }
-node_t*			NODE_Create(uint32_t NodeId, double ProcessTime, uint32_t CompressionLevel,uint32_t ReturnSize,uint32_t MTUProcessOverhead, double lpConsumption, double activeConsumption, uint32_t aggreationLevel){
+node_t*			NODE_Create(uint32_t NodeId, double ProcessTime, uint32_t CompressionLevel,uint32_t ReturnSize,uint32_t MTUProcessOverhead, double lpConsumption, double activeConsumption, uint32_t aggreationLevel, char nodeType){
 	if(NodeId < 1){
 		sprintf(LogText, "%d", NodeId);
 		LOG_ERROR_Print(ERROR_NODE_1, LogText);
@@ -199,6 +213,7 @@ node_t*			NODE_Create(uint32_t NodeId, double ProcessTime, uint32_t CompressionL
 	prvNODE_LIST[prvNODE_COUNTER-1]->receivedDataBufferSize 	= 0;
 	prvNODE_LIST[prvNODE_COUNTER-1]->SizeOfWaitData 			= 0;
 	prvNODE_LIST[prvNODE_COUNTER-1]->lpEnterTime 				= 0;
+	prvNODE_LIST[prvNODE_COUNTER-1]->lpExitTime 				= 0;
 	prvNODE_LIST[prvNODE_COUNTER-1]->MTUProcessOverhead 		= MTUProcessOverhead;
 	prvNODE_LIST[prvNODE_COUNTER-1]->ProcessedDataBytesCount 	= 0;
 	prvNODE_LIST[prvNODE_COUNTER-1]->compressionLevel 			= CompressionLevel;
@@ -208,12 +223,27 @@ node_t*			NODE_Create(uint32_t NodeId, double ProcessTime, uint32_t CompressionL
 	prvNODE_LIST[prvNODE_COUNTER-1]->processedDataBuffer		= malloc(sizeof(data_t*));
 	prvNODE_LIST[prvNODE_COUNTER-1]->agregationLevel 			= aggreationLevel;
 	prvNODE_LIST[prvNODE_COUNTER-1]->ProcessedOverheadBytesCount = 0;
-	prvNODE_LIST[prvNODE_COUNTER-1]->Type 						= NODE_TYPE_CONSUMER;
+	switch(nodeType){
+	case 'i':
+		prvNODE_LIST[prvNODE_COUNTER-1]->Type 						= NODE_TYPE_INTERFACE;
+		break;
+	case 'p':
+		prvNODE_LIST[prvNODE_COUNTER-1]->Type 						= NODE_TYPE_PRODUCER;
+		break;
+	case 'c':
+		prvNODE_LIST[prvNODE_COUNTER-1]->Type 						= NODE_TYPE_CONSUMER;
+		break;
+	default:
+		return NULL;
+	}
 	prvNODE_LIST[prvNODE_COUNTER-1]->operationalMode 			= NODE_OPMODE_LOWPOWER;
 	prvNODE_LIST[prvNODE_COUNTER-1]->DataBufferSize 			= ReturnSize;
 	prvNODE_LIST[prvNODE_COUNTER-1]->connections 				= malloc(sizeof(link_t*));
 	prvNODE_LIST[prvNODE_COUNTER-1]->connections[0] 			= NULL;
 	prvNODE_LIST[prvNODE_COUNTER-1]->connectionNumber			= 0;
+	prvNODE_LIST[prvNODE_COUNTER-1]->numberOfCreation			= 0;
+	prvNODE_LIST[prvNODE_COUNTER-1]->maxNumberOfCreation		= 1;
+	prvNODE_LIST[prvNODE_COUNTER-1]->productionCompleted		= 0;
 	memset(prvNODE_LIST[prvNODE_COUNTER-1]->LogFilename, 0, NODE_FILENAME_SIZE);
 	sprintf(prvNODE_LIST[prvNODE_COUNTER-1]->LogFilename, "Log/Nodes/%d.txt", NodeId);
 	//Try to open file for testing purpose
@@ -289,21 +319,36 @@ uint8_t			NODE_LinkNodes(uint32_t Node1Id, uint32_t Node2Id,uint32_t LinkID){
 	Print_ProcessLog(LOG_LINKED_NODE, LogText);
 	return 0;
 }
-void    		NODE_MakeProducerNode(uint32_t NodeId, uint32_t Rate, Boolean Periodic,uint32_t Size, uint32_t* PathLine,uint32_t DestinationId,Boolean RelativeFlag,uint32_t ProtocolID){
+uint32_t			NODE_FindProducer(){
+	int i = 0;
+	for (i =0; i< prvNODE_COUNTER;i++){
+		if(prvNODE_LIST[i]->productionCompleted == 1) return prvNODE_LIST[i]->ID;
+	}
+	return 0;
+}
+uint8_t    		NODE_MakeProducerNode(uint32_t NodeId, uint32_t Rate, Boolean Periodic,uint32_t Size, uint32_t* PathLine,uint32_t DestinationId,Boolean RelativeFlag,uint32_t ProtocolID){
 	node_t* NodePrt = NODE_GetById(NodeId);
-	NodePrt->Type = NODE_TYPE_PRODUCER;
+	if(NodePrt->Type != NODE_TYPE_PRODUCER) return 1;
+	NodePrt->numberOfCreation+=1;
+#if 0
+	if(NodePrt->numberOfCreation > NodePrt->maxNumberOfCreation){
+		NodePrt->productionCompleted = 1;
+		return 1;
+	}
+#endif
 	data_path_t* CreatedPath 	= DATA_PATH_Create(DestinationId, 	PathLine);
 	data_t* CreatedData 		= DATA_RAW_Create(Size,	CreatedPath, 	ProtocolID);
 	job_t* CreatedJob 		= JOB_Create(NodePrt, CreatedData, Periodic, Rate, JOB_TYPE_CREATE);
     double CurrentTime 		= TBASE_GetTime();
     if(RelativeFlag == False){
-    	event_t* CreatedEvent 	= TBASE_CreateEvent(CreatedJob, CurrentTime,0);
+    	event_t* CreatedEvent 	= TBASE_CreateEvent(CreatedJob, CurrentTime + Rate ,0);
     	TBASE_AddEvent(CreatedEvent);
     }
     else{
     	event_t* CreatedEvent 	= TBASE_CreateEvent(CreatedJob, CurrentTime+Rate,0);
     	TBASE_AddEvent(CreatedEvent);
     }
+	return 0;
 }
 
 node_status_t 			NODE_StartReceiveData(node_t* NodePtr, data_t* DataPtr){
@@ -322,6 +367,73 @@ node_status_t 			NODE_StartReceiveData(node_t* NodePtr, data_t* DataPtr){
 }
 node_status_t 			NODE_StartTransmitData(node_t* NodePtr){
 	double CurrentTime 	= TBASE_GetTime();
+	//get next node id in path
+	uint32_t NextNodeID = 0;
+	if(DATA_GetNextNodeID(NodePtr->processingData, &NextNodeID) != DATA_OK){
+		printf("Error while obtaining next node id on data path on node %d", NodePtr->ID);
+		return NODE_ERROR;
+	}
+	node_t* NextNode = NODE_GetById(NextNodeID);
+	if(NextNodeID == NodePtr->ID){
+		printf("Error on node while processing data MTU %d", NodePtr->ID);
+		return NODE_ERROR;
+	}
+	connection_t*	NextLink = CONNECTION_GetTwoNodesConnection(NodePtr, NextNode);
+	NodePtr->processingData->Size 				= NodePtr->processingData->Size/NodePtr->compressionLevel;
+	NodePtr->processingData->BytesToProcess 	=  NodePtr->processingData->Size+NodePtr->processingData->Overhead;
+	if(NextLink->bussy == True){
+		printf("Warning: (Timestamp =%lf) Data (id = %d) transfer over link with ID %d between %d (c) - %d (n) is delayed because data %d is currently transferring\r\n Transfer start at: %lf \r\n",
+				CurrentTime,
+				NodePtr->processingData->ID,
+				NextLink->AssignedLink->ID,
+				NodePtr->ID,
+				NextNodeID,
+				NextLink->currentTransferData->ID,
+				NextLink->transferStartTime);
+
+		if(NextLink->countingAccess > 1){
+			printf("ERROR: Link with ID %d between %d (c) - %d (n) is bussy at %lf(%d-%lf)\r\n",
+					NextLink->AssignedLink->ID, NodePtr->ID, NextNodeID, CurrentTime, NextLink->currentTransferData->ID, NextLink->transferStartTime);
+			return NODE_ERROR;
+		}
+		NodePtr->processingData->State = DATA_STATE_TRANSMIT_SUSPENDED;
+		job_t* JobStartTransmitCreated = JOB_Create(NodePtr, NodePtr->processingData,False,NextLink->transferEndTime, JOB_TYPE_TRANSMIT_START);
+		event_t* StartTransmitEvent = TBASE_CreateEvent(JobStartTransmitCreated, NextLink->transferEndTime,0);
+		TBASE_AddEvent(StartTransmitEvent);
+		Print_NodeLog(NodePtr, NodePtr->processingData, CurrentTime, 0, 0);
+		return NODE_OK;
+
+	}
+	else{
+		NextLink->bussy = True;
+		NextLink->currentTransferData = NodePtr->processingData;
+		NextLink->transferStartTime	= CurrentTime;
+	}
+	if(NodePtr->processingData->State == DATA_STATE_TRANSMIT_SUSPENDED){
+		NodePtr->processingData->State = DATA_STATE_TRANSMIT_CONTINUE;
+		Print_NodeLog(NodePtr, NodePtr->processingData, CurrentTime, 0, 0);
+	}
+	double TransferDuration = (NextLink->AssignedLink->NumberOfHops+1)*NodePtr->processingData->BytesToProcess/LINK_GetSpeed(NextLink);
+	NodePtr->processingData->EnergyToTransmitData 	= TransferDuration * NextLink->AssignedLink->TransmitConsumption;
+	NodePtr->processingData->EnergyToReceiveData 	= TransferDuration * NextLink->AssignedLink->ReceiveConsumption;
+	NodePtr->processingData->linkTransmitConsumption= NextLink->AssignedLink->TransmitConsumption;
+	NodePtr->processingData->linkReceiveConsumption = NextLink->AssignedLink->ReceiveConsumption;
+	NodePtr->processingData->overheadProccesFlag	= 0;
+	NextLink->transferEndTime		= CurrentTime + TransferDuration;
+
+	job_t* JobStartReceiveCreated = JOB_Create(NextNode, NodePtr->processingData,False,CurrentTime,	JOB_TYPE_RECEIVE_START);
+	job_t* JobSentCreated = JOB_Create(NodePtr, NodePtr->processingData,False,CurrentTime+TransferDuration,JOB_TYPE_TRANSMIT);
+	job_t* JobReceiveCreated = JOB_Create(NextNode, NodePtr->processingData,False,CurrentTime+TransferDuration,JOB_TYPE_RECEIVE);
+
+	event_t* StartReceiveEvent = TBASE_CreateEvent(JobStartReceiveCreated,CurrentTime,1);
+	event_t* SendEvent = TBASE_CreateEvent(JobSentCreated,CurrentTime+TransferDuration,2);
+	event_t* ReceiveEvent = TBASE_CreateEvent(JobReceiveCreated,CurrentTime+TransferDuration,1);
+	TBASE_AddEvent(StartReceiveEvent);
+	TBASE_AddEvent(SendEvent);
+	TBASE_AddEvent(ReceiveEvent);
+
+
+
 	NodePtr->currentConsumption += NodePtr->processingData->linkTransmitConsumption;
 	NodePtr->processingData->State = DATA_STATE_TRANSMIT_START;
 	Print_NodeLog(NodePtr, NodePtr->processingData, CurrentTime, 0, 0);
@@ -345,10 +457,17 @@ node_status_t 			NODE_ReceiveData(node_t* NodePtr, data_t* DataPtr){
 		DataPtr->State = DATA_STATE_CREATED;
 		if(DataPtr->Type == DATA_TYPE_REQUEST)DataPtr->CreatedTime = TBASE_GetTime();
 	}
+	if(NODE_GetOperationalMode(NodePtr) != NODE_OPMODE_FULLOPERATONAL){
+		if(NODE_WakeFromLPMode(NodePtr, CurrentTime) != NODE_OK){
+			printf("NODE: Error during wake-up event on node %d\r\n", NodePtr->ID);
+			return NODE_ERROR;
+		}
+	}
 	NodePtr->currentConsumption -= DataPtr->linkReceiveConsumption;
 	DataPtr->linkReceiveConsumption = 0;
-	NodePtr->FullConsumption	+= DataPtr->EnergyToReceiveData;
+	NodePtr->FullConsumption	+= DataPtr->EnergyToReceiveData + NODE_GetConsumptionUntilNow(NodePtr, CurrentTime);
 	DataPtr->EnergyToReceiveData = 0;
+	NODE_SetConsumptionStartPoint(NodePtr, CurrentTime);
 	if(NodePtr->Processing == True){
 		prvNODE_PutDataToReceiveWaitingList(NodePtr, DataPtr);
         Print_NodeLog(NodePtr, DataPtr, CurrentTime, 0, 0);
@@ -369,16 +488,14 @@ node_status_t 			NODE_ReceiveData(node_t* NodePtr, data_t* DataPtr){
 //		}
 		double ProcessTime = 0;
    	    double TimeToProcessArrivedData =0;
-   	    if(DataPtr -> aggregationFlag == DATA_AGG_RAW){
+   	    if(DataPtr -> aggregationFlag == DATA_AGG_RAW || NodePtr->Type == NODE_TYPE_INTERFACE){
    	    	TimeToProcessArrivedData = (double)DataPtr->BytesToProcess/NodePtr->ProcessTime;
    	    }
    	    else{
    	    	TimeToProcessArrivedData = (double)DataPtr->Overhead/NodePtr->MTUProcessOverhead;
    	    }
 //		double TimeToProcessPackets 	= ProcessOverheadTime;
-		ProcessTime 					= TimeToProcessArrivedData;// + TimeToProcessPackets;
-		DataPtr->EnergyToProcessData	= ProcessTime*NodePtr->activeConsumption;
-
+   	    ProcessTime = TimeToProcessArrivedData;
 		Print_NodeLog(NodePtr, DataPtr, CurrentTime, 0, 0);
 
 		NodePtr->Processing     		= True;
@@ -421,54 +538,67 @@ node_status_t 			NODE_ProcessData(node_t* NodePtr){
 		return NODE_ERROR;;
 	}
 	double CurrentTime = TBASE_GetTime();
-	NodePtr->FullConsumption += NodePtr->processingData->EnergyToProcessData;
+	NodePtr->FullConsumption += NODE_GetConsumptionUntilNow(NodePtr, CurrentTime);
+	NODE_SetConsumptionStartPoint(NodePtr, CurrentTime);
 	NodePtr->processingData->State = DATA_STATE_PROCESS_END;
 	//check is this node destination node for data
-	if(NodePtr->processingData->Path->destinationID == NodePtr->processingData->Path->currentID){
-		 NodePtr->processingData->State = DATA_STATE_CONSUMED;
-		 if(NodePtr->processingData->Type == DATA_TYPE_REQUEST){
-			 Print_NodeLog(NodePtr,NodePtr->processingData, CurrentTime, 0, 0);
-			 NodePtr->processingData->ElapsedRequestTime = TBASE_GetTime() - NodePtr->processingData->CreatedTime;
-			 if(NodePtr->processingData->aggregationFlag == DATA_AGG_FULL){
-				 uint32_t counter = 0;
-				 while(counter < NodePtr->processingData->aggreationList->numberOfData){
+	if((NodePtr->processingData->Path->destinationID == NodePtr->processingData->Path->currentID) && ((NodePtr->Type != NODE_TYPE_INTERFACE))){
+		NodePtr->processingData->State = DATA_STATE_CONSUMED;
+		if(NodePtr->processingData->Type == DATA_TYPE_REQUEST){
+			NodePtr->processingData->ElapsedRequestTime = TBASE_GetTime() - NodePtr->processingData->CreatedTime;
+			Print_NodeLog(NodePtr,NodePtr->processingData, CurrentTime, 0, 0);
+			if(NodePtr->processingData->aggregationFlag == DATA_AGG_FULL){
+				uint32_t counter = 0;
+				while(counter < NodePtr->processingData->aggreationList->numberOfData){
 					job_t* CreatedJob = JOB_Create(NodePtr, NodePtr->processingData->aggreationList->dataList[counter] ,False,CurrentTime,JOB_TYPE_RECEIVE);
 					event_t* CreatedEvent = TBASE_CreateEvent(CreatedJob, CurrentTime,0);
 					TBASE_AddEvent(CreatedEvent);
 					counter++;
-				 }
-			 }
-			 if(DATA_CreateResponse(NodePtr->processingData,NodePtr->DataBufferSize,TBASE_GetTime()) != 0){
-				 NodePtr->processingData->ElapsedResponseTime = TBASE_GetTime() - NodePtr->processingData->CreatedTime;
-				 Print_NodeLog(NodePtr,NodePtr->processingData, CurrentTime, 0, 0);
-				 free( NodePtr->processingData);
-				 NodePtr->processingData = NULL;
-			 }
-			 else{
+				}
+			}
+			if(DATA_CreateResponse(NodePtr->processingData,NodePtr->DataBufferSize,TBASE_GetTime()) != 0){
+				NodePtr->processingData->ElapsedResponseTime = TBASE_GetTime() - NodePtr->processingData->CreatedTime;
+				//Print_NodeLog(NodePtr,NodePtr->processingData, CurrentTime, 0, 0);
+				free( NodePtr->processingData);
+				NodePtr->processingData = NULL;
+				data_t* NextDataToProcess = prvNODE_GetDataFromReceiveWaitingList(NodePtr);
+				if(NextDataToProcess!=NULL){
+					 job_t* CreatedJob = JOB_Create(NodePtr, NextDataToProcess,False,CurrentTime,JOB_TYPE_RECEIVE);
+					 event_t* CreatedEvent = TBASE_CreateEvent(CreatedJob, CurrentTime,0);
+					 TBASE_AddEvent(CreatedEvent);
+				}
+				else{
+					//go to low power mode if there is no more data to process
+					if(NODE_GoToLPMode(NodePtr, CurrentTime) != NODE_OK){
+						printf("NODE: Error during lp mode on node %d\r\n", NodePtr->ID);
+						return NODE_ERROR;
+					}
+				}
+			}
+			else{
 				job_t* CreatedJob = JOB_Create(NodePtr, NodePtr->processingData,False,CurrentTime,JOB_TYPE_RECEIVE);
 				event_t* CreatedEvent = TBASE_CreateEvent(CreatedJob, CurrentTime,2);
 				TBASE_AddEvent(CreatedEvent);
-			 }
-
-		 }
-		 else{
-			 NodePtr->processingData->ElapsedResponseTime = TBASE_GetTime() - NodePtr->processingData->ElapsedResponseTime;
-			 Print_NodeLog(NodePtr,NodePtr->processingData, CurrentTime, 0, 0);
- 			data_t* NextDataToProcess = prvNODE_GetDataFromReceiveWaitingList(NodePtr);
- 			if(NextDataToProcess!=NULL){
- 				 job_t* CreatedJob = JOB_Create(NodePtr, NextDataToProcess,False,CurrentTime,JOB_TYPE_RECEIVE);
- 				 event_t* CreatedEvent = TBASE_CreateEvent(CreatedJob, CurrentTime,0);
- 				 TBASE_AddEvent(CreatedEvent);
- 			}
- 			else{
- 				//go to low power mode if there is no more data to process
- 				if(NODE_GoToLPMode(NodePtr, CurrentTime) != NODE_OK){
- 					printf("NODE: Error during lp mode on node %d\r\n", NodePtr->ID);
- 					return NODE_ERROR;
- 				}
- 			}
-		 }
-		 NodePtr->Processing = False;
+			}
+		}
+		else{
+			NodePtr->processingData->ElapsedResponseTime = TBASE_GetTime() - NodePtr->processingData->ElapsedResponseTime;
+			Print_NodeLog(NodePtr,NodePtr->processingData, CurrentTime, 0, 0);
+			data_t* NextDataToProcess = prvNODE_GetDataFromReceiveWaitingList(NodePtr);
+			if(NextDataToProcess!=NULL){
+				 job_t* CreatedJob = JOB_Create(NodePtr, NextDataToProcess,False,CurrentTime,JOB_TYPE_RECEIVE);
+				 event_t* CreatedEvent = TBASE_CreateEvent(CreatedJob, CurrentTime,0);
+				 TBASE_AddEvent(CreatedEvent);
+			}
+			else{
+				//go to low power mode if there is no more data to process
+				if(NODE_GoToLPMode(NodePtr, CurrentTime) != NODE_OK){
+					printf("NODE: Error during lp mode on node %d\r\n", NodePtr->ID);
+					return NODE_ERROR;
+				}
+			}
+		}
+		NodePtr->Processing = False;
 		return NODE_OK;
 	}
 	else{
@@ -497,19 +627,25 @@ node_status_t 			NODE_ProcessData(node_t* NodePtr){
 				}
 				connection_t*	NextLink = CONNECTION_GetTwoNodesConnection(NodePtr, NextNode);
 		  	    if(NextLink != 0){
-					int NumberOfPackets = ceil((((double)NodePtr->processingData->Size)/((double)NodePtr->compressionLevel))/((double)NextLink->AssignedLink->MTUSize));
-					NodePtr->processingData->Overhead = NumberOfPackets*NodePtr->processingData->AssignedProtocol->Overhead;
-					NodePtr->processingData->BytesToProcess =  NodePtr->processingData->Overhead;
-					double ProcessOverheadTime = (double)NodePtr->processingData->BytesToProcess/NodePtr->MTUProcessOverhead;
-					NodePtr->processingData->EnergyToProcessData = ProcessOverheadTime*NodePtr->activeConsumption;
-					NodePtr->Processing     		= True;
-					job_t* CreatedJob1  			= JOB_Create(NodePtr, NodePtr->processingData, True, CurrentTime, JOB_TYPE_PROCESS_MTU_START);
-					event_t* CreatedEvent1 			= TBASE_CreateEvent(CreatedJob1, CurrentTime, 1);
-					job_t* CreatedJob  				= JOB_Create(NodePtr, NodePtr->processingData, True, CurrentTime+ProcessOverheadTime, JOB_TYPE_PROCESS_MTU_END);
-					event_t* CreatedEvent 			= TBASE_CreateEvent(CreatedJob, CurrentTime+ProcessOverheadTime, 1);
-
-					TBASE_AddEvent(CreatedEvent1);
-					TBASE_AddEvent(CreatedEvent);
+		  	    	if(NodePtr->Type != NODE_TYPE_INTERFACE){
+						int NumberOfPackets = ceil((((double)NodePtr->processingData->Size)/((double)NodePtr->compressionLevel))/((double)NextLink->AssignedLink->MTUSize));
+						NodePtr->processingData->Overhead = NumberOfPackets*NodePtr->processingData->AssignedProtocol->Overhead;
+						NodePtr->processingData->BytesToProcess =  NodePtr->processingData->Overhead;
+						double ProcessOverheadTime = (double)NodePtr->processingData->BytesToProcess/NodePtr->MTUProcessOverhead;
+						NodePtr->processingData->EnergyToProcessData = ProcessOverheadTime*NodePtr->activeConsumption;
+						NodePtr->Processing     		= True;
+						job_t* CreatedJob1  			= JOB_Create(NodePtr, NodePtr->processingData, True, CurrentTime, JOB_TYPE_PROCESS_MTU_START);
+						event_t* CreatedEvent1 			= TBASE_CreateEvent(CreatedJob1, CurrentTime, 1);
+						job_t* CreatedJob  				= JOB_Create(NodePtr, NodePtr->processingData, True, CurrentTime+ProcessOverheadTime, JOB_TYPE_PROCESS_MTU_END);
+						event_t* CreatedEvent 			= TBASE_CreateEvent(CreatedJob, CurrentTime+ProcessOverheadTime, 1);
+						TBASE_AddEvent(CreatedEvent1);
+						TBASE_AddEvent(CreatedEvent);
+		  	    	}
+		  	    	else{
+		  	    		job_t* JobStartTransmitCreated = JOB_Create(NodePtr, NodePtr->processingData,False,CurrentTime,	JOB_TYPE_TRANSMIT_START);
+		  	    		event_t* StartTransmitEvent = TBASE_CreateEvent(JobStartTransmitCreated, CurrentTime,1);
+		  	    		TBASE_AddEvent(StartTransmitEvent);
+		  	    	}
 		  	    }
 		  	    else{
 		  	    	printf("NODE: There is no next link on node %d\r\n", NodePtr->ID);
@@ -554,7 +690,6 @@ node_status_t 			NODE_ProcessData(node_t* NodePtr){
 			}
 			else{
 				//go to low power mode if there is no more data to process
-				NodePtr->currentConsumption	   -= NodePtr->activeConsumption;
 				if(NODE_GoToLPMode(NodePtr, CurrentTime) != NODE_OK){
 					printf("NODE: Error during lp mode on node %d\r\n", NodePtr->ID);
 					return NODE_ERROR;
@@ -574,50 +709,14 @@ node_status_t 			NODE_ProcessMTUData(node_t* NodePtr){
 		puts("NODE: There is no assigned data for processing");
 		return NODE_ERROR;;
 	}
-	NodePtr->FullConsumption += NodePtr->processingData->EnergyToProcessData;
+	NodePtr->FullConsumption += NODE_GetConsumptionUntilNow(NodePtr, CurrentTime);
+	NODE_SetConsumptionStartPoint(NodePtr, CurrentTime);
 	NodePtr->processingData->State = DATA_STATE_PROCESS_END;
 	Print_NodeLog(NodePtr,NodePtr->processingData, CurrentTime, 0, 0);
-	//get next node id in path
-	uint32_t NextNodeID = 0;
-	if(DATA_GetNextNodeID(NodePtr->processingData, &NextNodeID) != DATA_OK){
-		printf("Error while obtaining next node id on data path on node %d", NodePtr->ID);
-		return NODE_ERROR;
-	}
-	node_t* NextNode = NODE_GetById(NextNodeID);
-	if(NextNodeID == NodePtr->ID){
-		printf("Error on node while processing data MTU %d", NodePtr->ID);
-		return NODE_ERROR;
-	}
-	connection_t*	NextLink = CONNECTION_GetTwoNodesConnection(NodePtr, NextNode);
-	if(NextLink->bussy == True){
-		printf("Warning: Link with ID %d between %d (c) - %d (n) is bussy at %lf(%d-%lf)\r\n",
-				NextLink->AssignedLink->ID, NodePtr->ID, NextNodeID, CurrentTime, NextLink->currentTransferData->ID, NextLink->currentTransferData->transferStartTime);
-	}
-	else{
-		NodePtr->processingData->transferStartTime	= CurrentTime;
-		NextLink->bussy = True;
-		NextLink->currentTransferData = NodePtr->processingData;
-	}
-	NodePtr->processingData->Size 				= NodePtr->processingData->Size/NodePtr->compressionLevel;
-	NodePtr->processingData->BytesToProcess 	=  NodePtr->processingData->Size+NodePtr->processingData->Overhead;
-	double TransferDuration = (NextLink->AssignedLink->NumberOfHops+1)*NodePtr->processingData->BytesToProcess/LINK_GetSpeed(NextLink);
-	NodePtr->processingData->EnergyToTransmitData 	= TransferDuration*NodePtr->activeConsumption + TransferDuration * NextLink->AssignedLink->TransmitConsumption;
-	NodePtr->processingData->EnergyToReceiveData 	= TransferDuration*NodePtr->activeConsumption + TransferDuration * NextLink->AssignedLink->ReceiveConsumption;
-	NodePtr->processingData->linkTransmitConsumption= NextLink->AssignedLink->TransmitConsumption;
-	NodePtr->processingData->linkReceiveConsumption = NextLink->AssignedLink->ReceiveConsumption;
-	NodePtr->processingData->overheadProccesFlag	= 0;
+
 	job_t* JobStartTransmitCreated = JOB_Create(NodePtr, NodePtr->processingData,False,CurrentTime,	JOB_TYPE_TRANSMIT_START);
-	job_t* JobStartReceiveCreated = JOB_Create(NextNode, NodePtr->processingData,False,CurrentTime,	JOB_TYPE_RECEIVE_START);
-	job_t* JobSentCreated = JOB_Create(NodePtr, NodePtr->processingData,False,CurrentTime+TransferDuration,JOB_TYPE_TRANSMIT);
-	job_t* JobReceiveCreated = JOB_Create(NextNode, NodePtr->processingData,False,CurrentTime+TransferDuration,JOB_TYPE_RECEIVE);
 	event_t* StartTransmitEvent = TBASE_CreateEvent(JobStartTransmitCreated, CurrentTime,1);
-	event_t* StartReceiveEvent = TBASE_CreateEvent(JobStartReceiveCreated,CurrentTime,0);
-	event_t* SendEvent = TBASE_CreateEvent(JobSentCreated,CurrentTime+TransferDuration,1);
-	event_t* ReceiveEvent = TBASE_CreateEvent(JobReceiveCreated,CurrentTime+TransferDuration,0);
 	TBASE_AddEvent(StartTransmitEvent);
-	TBASE_AddEvent(StartReceiveEvent);
-	TBASE_AddEvent(SendEvent);
-	TBASE_AddEvent(ReceiveEvent);
 	return NODE_OK;
 
 }
@@ -640,10 +739,11 @@ node_status_t 			NODE_TransmitData(node_t* NodePtr){
 		}
 		connection_t*	NextLink = CONNECTION_GetTwoNodesConnection(NodePtr, NextNode);
 		NextLink->bussy =False;
-		NodePtr->processingData->transferStartTime = 0;
+		NextLink->transferStartTime = 0;
 		NextLink->currentTransferData = NULL;
 		NodePtr->processingData->State = DATA_STATE_TRANSMIT_END;
-		NodePtr->FullConsumption += NodePtr->processingData->EnergyToTransmitData;
+		NodePtr->FullConsumption += NodePtr->processingData->EnergyToTransmitData + NODE_GetConsumptionUntilNow(NodePtr, CurrentTime);
+		NODE_SetConsumptionStartPoint(NodePtr, CurrentTime);
 		NodePtr->processingData->EnergyToTransmitData = 0;
 		if(NodePtr->processingData->aggregationFlag == DATA_AGG_FULL){
 			uint32_t counter = 0;
@@ -712,17 +812,31 @@ node_status_t		NODE_GoToLPMode(node_t* NodePtr, double time){
 	}
 	NodePtr->operationalMode = NODE_OPMODE_LOWPOWER;
 	NodePtr->lpEnterTime	 =	time;
+	NodePtr->lpExitTime	 	=	time;
 	Print_NodeLog(NodePtr,	NULL, time, 1, 1);
 	return NODE_OK;
 }
 node_status_t		NODE_WakeFromLPMode(node_t* NodePtr, double time){
 	if(NodePtr->operationalMode == NODE_OPMODE_FULLOPERATONAL) return NODE_ERROR;
-	NodePtr->FullConsumption+= (time - NodePtr->lpEnterTime)*NodePtr->lpConsumption;
+	NodePtr->lpExitTime			= time;
+	NodePtr->FullConsumption   += NODE_GetConsumptionUntilNow(NodePtr, time);
+	NODE_SetConsumptionStartPoint(NodePtr, time);
 	Print_NodeLog(NodePtr,	NULL, time, 1, 0);
 	NodePtr->currentConsumption	   += NodePtr->activeConsumption;
 	NodePtr->operationalMode = NODE_OPMODE_FULLOPERATONAL;
 	return NODE_OK;
 }
+double			NODE_GetConsumptionUntilNow(node_t* NodePtr, double currentTime){
+	double returnConsumtion = 0;
+	returnConsumtion = (currentTime - NodePtr->lpExitTime)*NodePtr->activeConsumption +
+				(currentTime - NodePtr->lpEnterTime)*NodePtr->lpConsumption;
+	return returnConsumtion;
+}
+void			NODE_SetConsumptionStartPoint(node_t* NodePtr, double currentTime){
+	NodePtr->lpEnterTime = currentTime;
+	NodePtr->lpExitTime = currentTime;
+}
+
 node_operational_mode_t	NODE_GetOperationalMode(node_t* NodePtr){
 	return NodePtr->operationalMode;
 }

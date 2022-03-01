@@ -30,6 +30,7 @@ FILE 			*ProtocolFile;		/*!< Store pointer to protocol file	*/
 protocol_t** 		DefinedProtocols;	/*!< List of all protocols define in protocol file */
 uint32_t 		ProtocolsNo;		/*!< Number of protocol	*/
 uint32_t 		DataIdCounter;		/*!< Used to create generic Data IDs	*/
+uint32_t		AggDataIDCounter;
 
 
 
@@ -124,6 +125,7 @@ uint8_t Parse_Protocols(){
 uint8_t DATA_Init(){
 	DataIdCounter = 0;  /*!< Initialize numbers of data*/
 	ProtocolsNo = 0;    /*!< Initialize numbers of protocols*/
+	AggDataIDCounter = 0;
 	ProtocolFile = fopen(Protocols_FileName,"r");
 	if(ProtocolFile == 0){
 		LOG_ERROR_Print(ERROR_FILE_0,Protocols_FileName);
@@ -174,6 +176,38 @@ data_path_t* DATA_PATH_Create(uint32_t DestinationId, uint32_t* PathLine){
 	return CreatedPath;
 }
 /**
+* @brief Create DataPath from current position until the end of path
+* @param DestinationId 	- Destination Node ID
+* @param PathLine 		- Array which stores Nodes id on data path
+* @return DataPath 		- DataPath is successfully created
+* @return NULL 			- DataPath creation fault
+*/
+data_path_t* 	DATA_PATH_CreateEndPath(data_path_t* path){
+	uint32_t*	line = malloc((path->numberOfNodesOnPath - path->currentIDPossition)*sizeof(uint32_t));
+	uint32_t Counter = path->currentIDPossition;
+	uint32_t Counter2 = 0;
+	while(Counter < path->numberOfNodesOnPath){
+		line[Counter2] =  path->line[Counter];
+		Counter++;
+		Counter2++;
+	}
+	return DATA_PATH_Create(path->destinationID,line);
+}
+/**
+* @brief Create DataPath from current position until the end of path
+* @param DestinationId 	- Destination Node ID
+* @param PathLine 		- Array which stores Nodes id on data path
+* @return DataPath 		- DataPath is successfully created
+* @return NULL 			- DataPath creation fault
+*/
+uint8_t 	DATA_PATH_AddNextNode(data_path_t* path, uint32_t nextNodeId){
+	path->line = realloc(path->line, (path->numberOfNodesOnPath+1)*sizeof(uint32_t));
+	path->line[path->numberOfNodesOnPath] = nextNodeId;
+	path->numberOfNodesOnPath++;
+	path->destinationID = nextNodeId;
+	return 0;
+}
+/**
 * @brief Create Data structure and initialize it for use
 *
 * 	This function create Data structure and initialize its fields for use. Size, DataPath and Protocol are
@@ -216,8 +250,8 @@ data_t* DATA_RAW_Create(uint32_t Size, data_path_t* Path, uint32_t ProtocolID){
 	CreatedData->EnergyToReceiveData 	= 0;
 	CreatedData->linkReceiveConsumption	= 0;
 	CreatedData->linkTransmitConsumption= 0;
-	CreatedData->transferStartTime		= 0;
 	CreatedData->overheadProccesFlag    = 0;
+	CreatedData->dataChangedToRow       = 0;
 	return CreatedData;
 }
 /**
@@ -228,7 +262,7 @@ data_t* DATA_RAW_Create(uint32_t Size, data_path_t* Path, uint32_t ProtocolID){
 * @return Data* 		- Return pointer to data if creation was successful
 * @return NULL 			- If creation wasn't successful
 */
-data_t* 		DATA_AGG_Create(data_path_t* Path,uint32_t ProtocolID,double time){
+data_t* 		DATA_AGG_Create(data_path_t* Path,uint32_t ProtocolID, data_path_t* FinalPath,double time){
 	char TempString[30];   /*!< USed to store error messages*/
 	data_t* CreatedData 	= malloc(sizeof(data_t));
 	if(CreatedData == NULL){
@@ -242,7 +276,7 @@ data_t* 		DATA_AGG_Create(data_path_t* Path,uint32_t ProtocolID,double time){
 	CreatedData->ElapsedRequestTime 	= 0;
 	CreatedData->ElapsedResponseTime 	= 0;
 	CreatedData->CreatedTime 			= time;
-	CreatedData->ID 					= DataIdCounter++;
+	CreatedData->ID 					= AggDataIDCounter++;
 	CreatedData->State					= DATA_STATE_CREATED;
 	CreatedData->Type					= DATA_TYPE_REQUEST;
 	CreatedData->AssignedProtocol 		= DATA_GetProtocol(ProtocolID);
@@ -265,8 +299,9 @@ data_t* 		DATA_AGG_Create(data_path_t* Path,uint32_t ProtocolID,double time){
 	CreatedData->EnergyToReceiveData 	= 0;
 	CreatedData->linkReceiveConsumption	= 0;
 	CreatedData->linkTransmitConsumption= 0;
-	CreatedData->transferStartTime		= 0;
 	CreatedData->overheadProccesFlag    = 0;
+	CreatedData->finalPath				= FinalPath;
+	CreatedData->dataChangedToRow       = 0;
 	return CreatedData;
 }
 /**
@@ -317,6 +352,18 @@ uint8_t 		DATA_AGG_RemoveData(data_t* rootData, data_t* childData){
 }
 
 /**
+* @brief Remove Data from aggregation list
+* @param  rootData		- Pointer to aggregation data structure
+* @param  chilldData	- Pointer to data which wants to be remove from aggregate list
+* @return 0 			- Data is successfully removed from aggregation list
+* @return 1 			- Data isn't in aggregation list
+* @return 2 			- There is a error while removing data to aggregation list
+*/
+uint8_t 		DATA_AGG_AddNextNodeOnPath(data_t* data, uint32_t nodeID){
+	if(data->aggregationFlag != DATA_AGG_FULL) return 1;
+	return DATA_PATH_AddNextNode(data->Path, nodeID);
+}
+/**
 * @brief Remoe all data from aggregation list
 * @param  rootData		- Pointer to aggregation data structure
 * @return 0 			- Data is successfully removed from aggregation list
@@ -353,6 +400,7 @@ uint8_t 		DATA_AGG_ChangeToRAW(data_t* rootData){
 	free(rootData->aggreationList);
 	rootData->aggreationList 	= NULL;
 	rootData->aggregationFlag 	= DATA_AGG_RAW;
+	rootData->dataChangedToRow  = 1;
 	return 0;
 }
 
@@ -419,6 +467,14 @@ data_status_t	DATA_SetNode(data_t* dataPtr, uint32_t nodeID){
 		while(counter < dataPtr->aggreationList->numberOfData){
 			if(DATA_SetNode(dataPtr->aggreationList->dataList[counter++], nodeID) != DATA_OK)return NODE_ERROR;
 		}
+		uint32_t counter = 0;
+		while(dataPtr->finalPath->line[counter] != nodeID){
+			if((counter+1) ==  dataPtr->finalPath->numberOfNodesOnPath) return DATA_ERROR;
+			counter++;
+		}
+		dataPtr->finalPath->currentIDPossition = counter;
+		dataPtr->finalPath->currentID = nodeID;
+		counter = 0;
 	}
 	return DATA_OK;
 }

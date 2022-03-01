@@ -28,7 +28,8 @@ typedef enum{
 
 typedef enum{
 	NODE_TYPE_PRODUCER,
-	NODE_TYPE_CONSUMER
+	NODE_TYPE_CONSUMER,
+	NODE_TYPE_INTERFACE
 }node_type_t;
 
 typedef enum{
@@ -62,6 +63,7 @@ typedef struct node_t{
 	double			activeConsumption;				/*!< Consumption of node while it is active mode(in mA)*/
 	double 			FullConsumption;				/*!< Full dissipation on node */
 	double			lpEnterTime;					/*!< Time stamp when node enter in LP mode*/
+	double			lpExitTime;					/*!< Time stamp when node enter in LP mode*/
 	uint32_t		connectionNumber;
 	connection_t** 	connections; 					/*!< List of all adjacent connection */
 	uint32_t 		compressionLevel; 				/*!< Aggregation Level */
@@ -70,6 +72,9 @@ typedef struct node_t{
 	node_operational_mode_t	operationalMode;		/*!< Current active node operational mode*/
 	uint32_t		agregationLevel;
 	double			currentConsumption;
+	uint32_t		maxNumberOfCreation;
+	uint32_t		numberOfCreation;
+	uint8_t			productionCompleted;
 }node_t;
 
 
@@ -84,11 +89,11 @@ void 	NODE_Init();
 * @return DataPath 		- DataPath is successfully created
 * @return NULL 			- DataPath creation fault
 */
-node_t*		NODE_Create(uint32_t NodeId, double ProcessTime, uint32_t CompressionLevel, uint32_t ReturnSize,uint32_t MTUProcessOverhead, double lpConsumption, double activeConsumption, uint32_t AggregationLevel);
+node_t*		NODE_Create(uint32_t NodeId, double ProcessTime, uint32_t CompressionLevel, uint32_t ReturnSize,uint32_t MTUProcessOverhead, double lpConsumption, double activeConsumption, uint32_t AggregationLevel,char nodeType);
 node_t*   	NODE_GetById(uint32_t NodeId);
 uint8_t		NODE_LinkNodes(uint32_t Node1Id, uint32_t Node2Id,uint32_t LinkID);
-
-void    	NODE_MakeProducerNode(uint32_t NodeId, uint32_t Rate, Boolean Periodic,uint32_t Size, uint32_t* PathLine,uint32_t DestinationId,	Boolean RelativeFlag,	uint32_t ProtocolID);
+uint32_t	NODE_FindProducer();
+uint8_t    	NODE_MakeProducerNode(uint32_t NodeId, uint32_t Rate, Boolean Periodic,uint32_t Size, uint32_t* PathLine,uint32_t DestinationId,	Boolean RelativeFlag,	uint32_t ProtocolID);
 
 
 node_status_t 			NODE_ReceiveData(node_t* NodePtr, data_t* DataPtr);
@@ -104,6 +109,8 @@ node_status_t			NODE_GoToLPMode(node_t* NodePtr, double time);
 node_status_t			NODE_WakeFromLPMode(node_t* NodePtr, double time);
 node_operational_mode_t	NODE_GetOperationalMode(node_t* NodePtr);
 connection_t*			NODE_FindConnection(node_t* NodePtr, uint32_t connectionID);
+double					NODE_GetConsumptionUntilNow(node_t* NodePtr, double currentTime);
+void					NODE_SetConsumptionStartPoint(node_t* NodePtr, double currentTime);
 
 
 

@@ -147,10 +147,12 @@ void Print_DataLog(data_t* DataPtr,FILE* FileToWrite,double Time){
 	sprintf(Text,"%d",DataPtr->BytesToProcess);
 	fprintf(FileToWrite,Text);
 	fprintf(FileToWrite,",");
-	if(DataPtr->aggregationFlag == DATA_AGG_FULL){
+	if(DataPtr->aggregationFlag == DATA_AGG_FULL || DataPtr->dataChangedToRow == 1){
 		fprintf(FileToWrite,"A_");
-		for(uint32_t i = 0; i < DataPtr->aggreationList->numberOfData;i++){
-			fprintf(FileToWrite,"%d_", DataPtr->aggreationList->dataList[i]->ID);
+		if(DataPtr->dataChangedToRow == 0){
+			for(uint32_t i = 0; i < DataPtr->aggreationList->numberOfData;i++){
+				fprintf(FileToWrite,"%d_", DataPtr->aggreationList->dataList[i]->ID);
+			}
 		}
 	}
 	switch(DataPtr->State){
@@ -191,18 +193,32 @@ void Print_DataLog(data_t* DataPtr,FILE* FileToWrite,double Time){
 			if(DataPtr->AssignedProtocol->Response == True){
 				if(DataPtr->Type == DATA_TYPE_RESPONSE){
 					DataElapsedTimeFile = fopen(ElapsedTimeLog_FileName,"a");
+					if(DataPtr->dataChangedToRow == 1)
+						fprintf(DataElapsedTimeFile,"A,");
+					else
+						fprintf(DataElapsedTimeFile,"R,");
 					fprintf(DataElapsedTimeFile,"%d,%lf,%lf,%lf,%lf\n",DataPtr->ID,DataPtr->CreatedTime,DataPtr->ElapsedRequestTime, DataPtr->ElapsedResponseTime,DataPtr->ElapsedRequestTime + DataPtr->ElapsedResponseTime);
 					fclose(DataElapsedTimeFile);
 				}
 			}
 			else{
 				DataElapsedTimeFile = fopen(ElapsedTimeLog_FileName,"a");
+				if(DataPtr->aggregationFlag == DATA_AGG_FULL)
+					fprintf(DataElapsedTimeFile,"A,");
+				else
+					fprintf(DataElapsedTimeFile,"R,");
 				fprintf(DataElapsedTimeFile,"%d,%lf,%lf,%lf,%lf\n",DataPtr->ID,DataPtr->CreatedTime, DataPtr->ElapsedRequestTime, 0.0, DataPtr->ElapsedRequestTime);
 				fclose(DataElapsedTimeFile);
 			}
 			break;
 		case DATA_STATE_TRANSMIT_END:
 			fprintf(FileToWrite,"T_E");
+			break;
+		case DATA_STATE_TRANSMIT_SUSPENDED:
+			fprintf(FileToWrite,"T_S_D");
+			break;
+		case DATA_STATE_TRANSMIT_CONTINUE:
+			fprintf(FileToWrite,"T_S_C");
 			break;
 		case DATA_STATE_TRANSMIT_START:
 			fprintf(FileToWrite,"T_S");
@@ -267,7 +283,7 @@ void Print_NodeLog(node_t* NodePtr,data_t* DataPtr, double Time, uint8_t lpStatu
 		}
 		fprintf(fp,Text);
 		fprintf(fp,",");
-		sprintf(Text,"%d",NodePtr->currentConsumption);
+		sprintf(Text,"%lf",NodePtr->currentConsumption);
 		fprintf(fp,Text);
 		fprintf(fp,",");
 		sprintf(Text,"%lf",NodePtr->FullConsumption);
@@ -276,4 +292,5 @@ void Print_NodeLog(node_t* NodePtr,data_t* DataPtr, double Time, uint8_t lpStatu
 
 	}
 	fclose(fp);
+
 }
