@@ -1,0 +1,1 @@
+Uvek saljemo 1KB podataka sa periodom 1s ali je perioda odabiranja razlicita
