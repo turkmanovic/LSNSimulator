@@ -1,7 +1,8 @@
 Debug/src
 Debug/*.exe
 Debug/*.mk
-Log/*
+Log/Nodes/
+Log/Process/
 Grafici/
 html/
 DoxyGenInstallDir/
