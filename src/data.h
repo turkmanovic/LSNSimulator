@@ -44,8 +44,19 @@ typedef enum {
 	DATA_STATE_TRANSMIT_END,	/*!< Data is sent from node */
 	DATA_STATE_TRANSMIT_SUSPENDED,	/*!< Data is sent from node */
 	DATA_STATE_TRANSMIT_CONTINUE,	/*!< Data is sent from node */
-	DATA_STATE_CONSUMED			/*!< Data arrived on destination */
+	DATA_STATE_CONSUMED,		/*!< Data arrived on destination */
+	DATA_STATE_DISCARDED		/*!< Data dsicarded on destination */
 }data_state_t;
+
+/**
+* Data Retransmission States.
+*/
+typedef enum {
+	RETRANSMISSION_STATE_UNITIALIZED,		/*!< Default state, retransmission not used */
+	RETRANSMISSION_STATE_SCHEDULED,			/*!< Data is created and initialized */
+	RETRANSMISSION_STATE_STARTED,			/*!< Data wait to be processed on node */
+	RETRANSMISSION_STATE_CANCELED,			/*!< Data is received on node */
+}data_retransmission_state_t;
 
 /**
 * Data Type.
@@ -129,6 +140,9 @@ typedef struct data_t{
 	uint8_t 		overheadProccesFlag; 			/*!< Indicate when data is overhead */
 	data_path_t* 	finalPath;					/*!< Used in case of aggregation data */
 	uint8_t			dataChangedToRow;
+
+	uint32_t		numOfRetransmits;		/*!< How many times data has been retransmitted */
+	data_retransmission_state_t	 RetState;  /*!< State of data to be retransmitted */
 }data_t;
 
 /**
@@ -170,6 +184,13 @@ uint8_t 	DATA_PATH_AddNextNode(data_path_t* path, uint32_t nextNodeId);
 * @return NULL 			- If creation wasn't successful
 */
 data_t* 		DATA_RAW_Create(uint32_t Size, data_path_t* Path, uint32_t ProtocolID);
+/**
+* @brief Create tdentical copy of data
+* @param DataToCopyPtr 	- Pointer to data to be copied
+* @return Data* 		- Return pointer to copy of data
+* @return NULL 			- If copying wasn't successful
+*/
+data_t*			DATA_RAW_CreateCopy(data_t* DataToCopyPtr);
 /**
 * @brief Create Aggregation Data structure and initialize it for use
 * @param Path 			- Previously created DataPath to the next node

@@ -14,11 +14,16 @@
 #include "data.h"
 
 #include "link.h"
-
-
+#include "Job.h"
 
 
 #define	NODE_FILENAME_SIZE		30
+
+// TODO this should be member variables
+#define RECEIVED_DATA_BUFF_MAX_SIZE		0
+#define MAX_RETRANSMIT_NUM				5
+#define RETRANSMISSION_TIMER			10
+
 
 typedef enum{
 	NODE_OK,
@@ -75,6 +80,10 @@ typedef struct node_t{
 	uint32_t		maxNumberOfCreation;
 	uint32_t		numberOfCreation;
 	uint8_t			productionCompleted;
+
+	uint32_t		retransmissionTimer;			/*!< Timeout after unsuccesfull transmit*/
+	uint32_t		maxNumberRetransmists;			/*!< Max num of retransmissions*/
+	uint32_t		receivedDataBufferMaxSize;		/*!< Max size of receivedDataBuffer*/
 }node_t;
 
 
@@ -102,8 +111,8 @@ node_status_t 			NODE_ProcessData(node_t* NodePtr);
 node_status_t 			NODE_StartProcessData(node_t* NodePtr);
 node_status_t 			NODE_ProcessMTUData(node_t* NodePtr);
 node_status_t 			NODE_StartProcessMTUData(node_t* NodePtr);
-node_status_t 			NODE_TransmitData(node_t* NodePtr);
-node_status_t 			NODE_StartTransmitData(node_t* NodePtr);
+node_status_t 			NODE_TransmitData(node_t* NodePtr, enum job_type_t typeOfTransmit);
+node_status_t 			NODE_StartTransmitData(node_t* NodePtr, enum job_type_t typeOfTransmit);
 
 node_status_t			NODE_GoToLPMode(node_t* NodePtr, double time);
 node_status_t			NODE_WakeFromLPMode(node_t* NodePtr, double time);

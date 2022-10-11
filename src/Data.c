@@ -252,6 +252,63 @@ data_t* DATA_RAW_Create(uint32_t Size, data_path_t* Path, uint32_t ProtocolID){
 	CreatedData->linkTransmitConsumption= 0;
 	CreatedData->overheadProccesFlag    = 0;
 	CreatedData->dataChangedToRow       = 0;
+
+	CreatedData->numOfRetransmits		= 0;
+	CreatedData->RetState				= RETRANSMISSION_STATE_UNITIALIZED;
+	return CreatedData;
+}
+/**
+* @brief Create copy of Data structure from original Data and initialize it for use 
+*
+* 	This function creates a copy of Data structure and initializes its fields for use. 
+*	Original Data structure is passed as an argument. 
+*
+* @param originalData	- Pointer to Data to be copied
+* @return data_t* 		- Ponter to copied Data
+*/
+data_t* DATA_RAW_CreateCopy(data_t* originalData) {
+	char TempString[30];   /*!< USed to store error messages*/
+	data_t* CreatedData = malloc(sizeof(data_t));
+
+	if (CreatedData == NULL) {
+		LOG_ERROR_Print(ERROR_ALLOCATING_0, "Data allocation");
+		return NULL;
+	}
+	CreatedData->Path = originalData->Path;
+	CreatedData->Size = originalData->Size;
+	CreatedData->BytesToProcess = originalData->BytesToProcess;
+	CreatedData->Overhead = originalData->Overhead;
+	CreatedData->ElapsedRequestTime = originalData->ElapsedRequestTime;
+	CreatedData->ElapsedResponseTime = originalData->ElapsedResponseTime;
+	CreatedData->CreatedTime = originalData->CreatedTime;
+	CreatedData->ID = originalData->ID;
+	CreatedData->State = originalData->State;
+	CreatedData->Type = originalData->Type;
+	CreatedData->aggregationFlag = originalData->aggregationFlag;
+	CreatedData->aggreationList = originalData->aggreationList;
+	CreatedData->EnergyToProcessData = originalData->EnergyToProcessData;
+	CreatedData->EnergyToTransmitData = originalData->EnergyToTransmitData;
+	CreatedData->EnergyToReceiveData = originalData->EnergyToReceiveData;
+	CreatedData->linkReceiveConsumption = originalData->linkReceiveConsumption;
+	CreatedData->linkTransmitConsumption = originalData->linkTransmitConsumption;
+	CreatedData->overheadProccesFlag = originalData->overheadProccesFlag;
+	CreatedData->dataChangedToRow = originalData->dataChangedToRow;
+	CreatedData->numOfRetransmits = originalData->numOfRetransmits;
+	CreatedData->RetState = originalData->RetState;
+	// dynamic fields
+	CreatedData->Path = malloc(sizeof(data_path_t));
+	*(CreatedData->Path) = *(originalData->Path);
+	CreatedData->Path->line = malloc((originalData->Path->numberOfNodesOnPath) * sizeof(uint32_t));
+
+	uint32_t i = 0;
+	for (i = 0; i < originalData->Path->numberOfNodesOnPath; i++) {
+		CreatedData->Path->line[i] = originalData->Path->line[i];
+	}
+
+	CreatedData->AssignedProtocol = malloc(sizeof(protocol_t));
+	*(CreatedData->AssignedProtocol) = *(originalData->AssignedProtocol);
+		
+	// TODO: add checks for data allocation
 	return CreatedData;
 }
 /**

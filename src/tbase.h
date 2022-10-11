@@ -12,6 +12,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include "Job.h"		//haris
 
 typedef enum{
 	TBASE_OK,
@@ -52,6 +53,15 @@ event_t* 		TBASE_CreateEvent(struct Job* JobToProcess, double Time,uint16_t Prio
 * @return 	0				-	Adding Event to list is failed
 */
 uint8_t 		TBASE_AddEvent(event_t* EventToProcess);
+/**	
+* @brief Remove Event using Node, job Type and Data ID 
+* @param	Node			-	Processed Node of job assigned to Event
+* @param	Type			-	Job Type of job assinged to Event
+* @param	DataID			-	ID of data processed in job assigned to Event
+* @return	1				-	Removing Event from list is doned successfully
+* @return	0				-	Removing Event from list is failed
+*/
+uint8_t			TBASE_RemoveEvent(node_t* Node, job_type_t Type, uint32_t DataID);
 /**
  * @brief Get current system time
  * @return System Time

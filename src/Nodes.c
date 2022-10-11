@@ -7,7 +7,6 @@
 #include <math.h>
 #include <stdio.h>
 
-#include "job.h"
 #include "Log.h"
 #include "tbase.h"
 
@@ -143,7 +142,7 @@ node_status_t	prvNODE_PutDataToProcessedList(node_t* NodePtr, data_t* DataPtr){
 			dataToAdd = DataPtr;
 		}
 	}
-	if( dataToAdd != NULL){
+	if( dataToAdd != NULL){ // TODO: add sent data to ProcessedList
 		NodePtr->processedDataBufferSize++;
 		NodePtr->ProcessedDataBytesCount	+= dataToAdd->Size;
 		NodePtr->processedDataBuffer 		 = realloc(NodePtr->processedDataBuffer, NodePtr->processedDataBufferSize*sizeof(data_t));
@@ -154,6 +153,14 @@ node_status_t	prvNODE_PutDataToProcessedList(node_t* NodePtr, data_t* DataPtr){
 	}
     return NODE_OK;
 }
+
+data_t* prvNODE_GetDataFromProcessedList(node_t* NodePtr) {
+	if (NodePtr == NULL) return NODE_ERROR;
+	if (NodePtr->processedDataBufferSize == 0) return NODE_ERROR;
+
+	return NodePtr->processedDataBuffer[0];
+}
+
 //return 0 - data is found and it is successfully removed from list
 //return 1 - data is not found in list
 node_status_t	prvNODE_RemoveDataFromProcessedList(node_t* NodePtr, data_t* DataPtr){
@@ -244,6 +251,11 @@ node_t*			NODE_Create(uint32_t NodeId, double ProcessTime, uint32_t CompressionL
 	prvNODE_LIST[prvNODE_COUNTER-1]->numberOfCreation			= 0;
 	prvNODE_LIST[prvNODE_COUNTER-1]->maxNumberOfCreation		= 1;
 	prvNODE_LIST[prvNODE_COUNTER-1]->productionCompleted		= 0;
+
+	prvNODE_LIST[prvNODE_COUNTER-1]->retransmissionTimer		= RETRANSMISSION_TIMER;
+	prvNODE_LIST[prvNODE_COUNTER-1]->maxNumberRetransmists		= MAX_RETRANSMIT_NUM;
+	prvNODE_LIST[prvNODE_COUNTER-1]->receivedDataBufferMaxSize  = RECEIVED_DATA_BUFF_MAX_SIZE;
+
 	memset(prvNODE_LIST[prvNODE_COUNTER-1]->LogFilename, 0, NODE_FILENAME_SIZE);
 	sprintf(prvNODE_LIST[prvNODE_COUNTER-1]->LogFilename, "Log/Nodes/%d.txt", NodeId);
 	//Try to open file for testing purpose
@@ -352,23 +364,43 @@ uint8_t    		NODE_MakeProducerNode(uint32_t NodeId, uint32_t Rate, Boolean Perio
 }
 
 node_status_t 			NODE_StartReceiveData(node_t* NodePtr, data_t* DataPtr){
-	double CurrentTime 	= TBASE_GetTime();
-	//wake up from LP mode
-	if(NODE_GetOperationalMode(NodePtr) != NODE_OPMODE_FULLOPERATONAL){
-		if(NODE_WakeFromLPMode(NodePtr, CurrentTime) != NODE_OK){
-			printf("NODE: Error during wake-up event on node %d\r\n", NodePtr->ID);
-			return NODE_ERROR;
+	double CurrentTime = TBASE_GetTime();
+	if (NodePtr->receivedDataBufferSize < NodePtr->receivedDataBufferMaxSize)
+	{
+		//wake up from LP mode
+		if (NODE_GetOperationalMode(NodePtr) != NODE_OPMODE_FULLOPERATONAL) {
+			if (NODE_WakeFromLPMode(NodePtr, CurrentTime) != NODE_OK) {
+				printf("NODE: Error during wake-up event on node %d\r\n", NodePtr->ID);
+				return NODE_ERROR;
+			}
 		}
+		NodePtr->currentConsumption += DataPtr->linkReceiveConsumption;
+		DataPtr->State = DATA_STATE_RECEIVE_START;
+		Print_NodeLog(NodePtr, DataPtr, CurrentTime, 0, 0);
 	}
-	NodePtr->currentConsumption += DataPtr->linkReceiveConsumption;
-	DataPtr->State				= DATA_STATE_RECEIVE_START;
-	Print_NodeLog(NodePtr, DataPtr, CurrentTime, 0, 0);
+	else {
+		//delete receive job
+		TBASE_RemoveEvent(NodePtr, JOB_TYPE_RECEIVE, DataPtr->ID);
+		DataPtr->State = DATA_STATE_DISCARDED;
+	}
+	// end of Miki
 	return NODE_OK;
 }
-node_status_t 			NODE_StartTransmitData(node_t* NodePtr){
+
+node_status_t 			NODE_StartTransmitData(node_t* NodePtr, job_type_t typeOfTransmit){
 	double CurrentTime 	= TBASE_GetTime();
 	//get next node id in path
-	uint32_t NextNodeID = 0;
+	uint32_t NextNodeID = 0;	
+	data_t* TempDataPtr = NodePtr->processingData;
+	if (typeOfTransmit == JOB_TYPE_RETRANSMIT_START) {
+		NodePtr->processingData = prvNODE_GetDataFromProcessedList(NodePtr);
+		if (NODE_GetOperationalMode(NodePtr) != NODE_OPMODE_FULLOPERATONAL) {
+			if (NODE_WakeFromLPMode(NodePtr, CurrentTime) != NODE_OK) {
+				printf("NODE: Error during wake-up event on node %d\r\n", NodePtr->ID);
+				return NODE_ERROR;
+			}
+		}
+	}
 	if(DATA_GetNextNodeID(NodePtr->processingData, &NextNodeID) != DATA_OK){
 		printf("Error while obtaining next node id on data path on node %d", NodePtr->ID);
 		return NODE_ERROR;
@@ -397,12 +429,12 @@ node_status_t 			NODE_StartTransmitData(node_t* NodePtr){
 			return NODE_ERROR;
 		}
 		NodePtr->processingData->State = DATA_STATE_TRANSMIT_SUSPENDED;
-		job_t* JobStartTransmitCreated = JOB_Create(NodePtr, NodePtr->processingData,False,NextLink->transferEndTime, JOB_TYPE_TRANSMIT_START);
+		job_t* JobStartTransmitCreated = JOB_Create(NodePtr, NodePtr->processingData, False, NextLink->transferEndTime, typeOfTransmit);
 		event_t* StartTransmitEvent = TBASE_CreateEvent(JobStartTransmitCreated, NextLink->transferEndTime,0);
 		TBASE_AddEvent(StartTransmitEvent);
 		Print_NodeLog(NodePtr, NodePtr->processingData, CurrentTime, 0, 0);
+		NodePtr->processingData = TempDataPtr;
 		return NODE_OK;
-
 	}
 	else{
 		NextLink->bussy = True;
@@ -414,15 +446,22 @@ node_status_t 			NODE_StartTransmitData(node_t* NodePtr){
 		Print_NodeLog(NodePtr, NodePtr->processingData, CurrentTime, 0, 0);
 	}
 	double TransferDuration = (NextLink->AssignedLink->NumberOfHops+1)*NodePtr->processingData->BytesToProcess/LINK_GetSpeed(NextLink);
-	NodePtr->processingData->EnergyToTransmitData 	= TransferDuration * NextLink->AssignedLink->TransmitConsumption;
-	NodePtr->processingData->EnergyToReceiveData 	= TransferDuration * NextLink->AssignedLink->ReceiveConsumption;
+	NodePtr->processingData->EnergyToTransmitData   = TransferDuration * NextLink->AssignedLink->TransmitConsumption;
+	NodePtr->processingData->EnergyToReceiveData    = TransferDuration * NextLink->AssignedLink->ReceiveConsumption;
 	NodePtr->processingData->linkTransmitConsumption= NextLink->AssignedLink->TransmitConsumption;
 	NodePtr->processingData->linkReceiveConsumption = NextLink->AssignedLink->ReceiveConsumption;
-	NodePtr->processingData->overheadProccesFlag	= 0;
-	NextLink->transferEndTime		= CurrentTime + TransferDuration;
+	NodePtr->processingData->overheadProccesFlag    = 0;
+	NextLink->transferEndTime       = CurrentTime + TransferDuration;
 
-	job_t* JobStartReceiveCreated = JOB_Create(NextNode, NodePtr->processingData,False,CurrentTime,	JOB_TYPE_RECEIVE_START);
-	job_t* JobSentCreated = JOB_Create(NodePtr, NodePtr->processingData,False,CurrentTime+TransferDuration,JOB_TYPE_TRANSMIT);
+	job_t* JobStartReceiveCreated = JOB_Create(NextNode, NodePtr->processingData,False,CurrentTime, JOB_TYPE_RECEIVE_START);
+	job_t* JobSentCreated;
+	if (typeOfTransmit == JOB_TYPE_TRANSMIT_START) {
+		JobSentCreated = JOB_Create(NodePtr, NodePtr->processingData, False, CurrentTime + TransferDuration, JOB_TYPE_TRANSMIT);
+	}
+	else {
+		JobSentCreated = JOB_Create(NodePtr, NodePtr->processingData, False, CurrentTime + TransferDuration, JOB_TYPE_RETRANSMIT);
+		NodePtr->processingData->RetState = RETRANSMISSION_STATE_STARTED;
+	}
 	job_t* JobReceiveCreated = JOB_Create(NextNode, NodePtr->processingData,False,CurrentTime+TransferDuration,JOB_TYPE_RECEIVE);
 
 	event_t* StartReceiveEvent = TBASE_CreateEvent(JobStartReceiveCreated,CurrentTime,1);
@@ -437,6 +476,7 @@ node_status_t 			NODE_StartTransmitData(node_t* NodePtr){
 	NodePtr->currentConsumption += NodePtr->processingData->linkTransmitConsumption;
 	NodePtr->processingData->State = DATA_STATE_TRANSMIT_START;
 	Print_NodeLog(NodePtr, NodePtr->processingData, CurrentTime, 0, 0);
+	NodePtr->processingData = TempDataPtr;
 	return NODE_OK;
 }
 node_status_t 			NODE_ReceiveData(node_t* NodePtr, data_t* DataPtr){
@@ -469,7 +509,7 @@ node_status_t 			NODE_ReceiveData(node_t* NodePtr, data_t* DataPtr){
 	DataPtr->EnergyToReceiveData = 0;
 	NODE_SetConsumptionStartPoint(NodePtr, CurrentTime);
 	if(NodePtr->Processing == True){
-		prvNODE_PutDataToReceiveWaitingList(NodePtr, DataPtr);
+		prvNODE_PutDataToReceiveWaitingList(NodePtr, DataPtr);		
         Print_NodeLog(NodePtr, DataPtr, CurrentTime, 0, 0);
 		return NODE_OK;
 	}
@@ -584,6 +624,39 @@ node_status_t 			NODE_ProcessData(node_t* NodePtr){
 		else{
 			NodePtr->processingData->ElapsedResponseTime = TBASE_GetTime() - NodePtr->processingData->ElapsedResponseTime;
 			Print_NodeLog(NodePtr,NodePtr->processingData, CurrentTime, 0, 0);
+			//remove retransmission job and free data
+			data_t* TempDataPtr = prvNODE_GetDataFromProcessedList(NodePtr);
+			
+			switch (TempDataPtr->RetState)
+			{
+				case RETRANSMISSION_STATE_UNITIALIZED:
+					//error
+					break;
+				case RETRANSMISSION_STATE_SCHEDULED:
+					TBASE_RemoveEvent(NodePtr, JOB_TYPE_RETRANSMIT_START, TempDataPtr->ID);
+					// discard data
+					if (prvNODE_RemoveDataFromProcessedList(NodePtr, TempDataPtr) != NODE_OK) {
+						printf("NODE: There is error during removing data from processing list on node %d\r\n", NodePtr->ID);
+						return NODE_OK;
+					}
+					free(TempDataPtr);
+					break;
+				case RETRANSMISSION_STATE_STARTED:
+					TBASE_RemoveEvent(NodePtr, JOB_TYPE_RETRANSMIT_START, TempDataPtr->ID);
+					TempDataPtr->RetState = RETRANSMISSION_STATE_CANCELED;
+					break;
+				case RETRANSMISSION_STATE_CANCELED:
+					// discard data
+					if (prvNODE_RemoveDataFromProcessedList(NodePtr, TempDataPtr) != NODE_OK) {
+						printf("NODE: There is error during removing data from processing list on node %d\r\n", NodePtr->ID);
+						return NODE_OK;
+					}
+					free(TempDataPtr);
+					break;
+				default:
+					break;
+			}
+
 			data_t* NextDataToProcess = prvNODE_GetDataFromReceiveWaitingList(NodePtr);
 			if(NextDataToProcess!=NULL){
 				 job_t* CreatedJob = JOB_Create(NodePtr, NextDataToProcess,False,CurrentTime,JOB_TYPE_RECEIVE);
@@ -720,14 +793,19 @@ node_status_t 			NODE_ProcessMTUData(node_t* NodePtr){
 	return NODE_OK;
 
 }
-node_status_t 			NODE_TransmitData(node_t* NodePtr){
+node_status_t 			NODE_TransmitData(node_t* NodePtr, job_type_t typeOfTransmit){
+	data_t* TempDataPtr = NodePtr->processingData;
+	if (typeOfTransmit == JOB_TYPE_RETRANSMIT) {
+		NodePtr->processingData = prvNODE_GetDataFromProcessedList(NodePtr);
+	}
 	if( NodePtr->processingData == NULL){
 	    	 return NODE_ERROR;
-	}
-	if( NodePtr->processingData->State == DATA_STATE_RECEIVE_START){
-		double CurrentTime = TBASE_GetTime();
-		data_t* TempDataPtr = NodePtr->processingData;
+	}																			
+	if( NodePtr->processingData->State == DATA_STATE_RECEIVE_START || NodePtr->processingData->State == DATA_STATE_DISCARDED) {
+		double CurrentTime = TBASE_GetTime();									
+		data_t* TempDataPtr = NodePtr->processingData;							
 		uint32_t NextNodeID = 0;
+		data_t* CopyOfData;
 		if(DATA_GetNextNodeID(NodePtr->processingData, &NextNodeID) != DATA_OK){
 			printf("Error while obtaining next node id on data path on node %d", NodePtr->ID);
 			return NODE_ERROR;
@@ -752,16 +830,40 @@ node_status_t 			NODE_TransmitData(node_t* NodePtr){
 				counter++;
 			}
 		}
-		if(prvNODE_RemoveDataFromProcessedList(NodePtr, NodePtr->processingData) != NODE_OK){
-			printf("NODE: There is error during removing data from processing list on node %d\r\n", NodePtr->ID);
-			return NODE_OK;
+		// if src and response is y and maxNumRetransmits not reached and data is request and retransmission is not yet canceled
+		if ((NodePtr->processingData->Path->currentIDPossition == 0) &&
+			(NodePtr->processingData->AssignedProtocol->Response == True) &&
+			(NodePtr->processingData->numOfRetransmits < NodePtr->maxNumberRetransmists) &&
+			(NodePtr->processingData->Type == DATA_TYPE_REQUEST) &&
+			(NodePtr->processingData->RetState != RETRANSMISSION_STATE_CANCELED)) {
+			
+			//make data copy
+			CopyOfData = DATA_RAW_CreateCopy(NodePtr->processingData);
+			CopyOfData->RetState = RETRANSMISSION_STATE_SCHEDULED;
+			//put copy to processed data list
+			if (prvNODE_PutDataToProcessedList(NodePtr, CopyOfData) != NODE_OK) {
+				puts("NODE: Processing list is full");
+				return NODE_ERROR;
+			}
+
+			CopyOfData->numOfRetransmits++;
+			job_t* JobStartTransmitCreated = JOB_Create(NodePtr, CopyOfData, False, CurrentTime + NodePtr->retransmissionTimer, JOB_TYPE_RETRANSMIT_START);
+			event_t* StartTransmitEvent = TBASE_CreateEvent(JobStartTransmitCreated, CurrentTime + NodePtr->retransmissionTimer, 1);
+			TBASE_AddEvent(StartTransmitEvent);
+		}
+		// end of Miki
+		if (NodePtr->processingData->RetState != RETRANSMISSION_STATE_CANCELED) {
+			if (prvNODE_RemoveDataFromProcessedList(NodePtr, NodePtr->processingData) != NODE_OK) {
+				printf("NODE: There is error during removing data from processing list on node %d\r\n", NodePtr->ID);
+				return NODE_OK;
+			}
 		}
 		NodePtr->processingData = NULL;
 		NodePtr->Processing = False;
 		Print_NodeLog(NodePtr,TempDataPtr, CurrentTime, 0, 0);
-		NodePtr->currentConsumption -= TempDataPtr->linkReceiveConsumption;
+		NodePtr->currentConsumption -= TempDataPtr->linkReceiveConsumption;		// Haris, shouldn't it be linkTransmitConsumption here?
 		//check is there more data to process
-		data_t* NextDataToProcess = prvNODE_GetDataFromReceiveWaitingList(NodePtr);
+		data_t* NextDataToProcess = prvNODE_GetDataFromReceiveWaitingList(NodePtr);					
 		if(NextDataToProcess!=NULL){
 			job_t* 	CreatedJob 		= JOB_Create(NodePtr, NextDataToProcess,False,CurrentTime,JOB_TYPE_RECEIVE);
 			event_t* 	CreatedEvent 	= TBASE_CreateEvent(CreatedJob, CurrentTime,0);
@@ -843,7 +945,7 @@ node_operational_mode_t	NODE_GetOperationalMode(node_t* NodePtr){
 
 connection_t*			NODE_FindConnection(node_t* NodePtr, uint32_t connectionID){
 	if(NodePtr->connectionNumber == 0) return NULL;
-	uint32_t counter;
+	uint32_t counter = 0;
 	while(counter < NodePtr->connectionNumber){
 		if(NodePtr->connections[counter]->ID == connectionID) return NodePtr->connections[counter];
 		counter++;

@@ -79,7 +79,42 @@ uint8_t TBASE_AddEvent(event_t* EventToProcess){
 		}
 	}
 	return 1;
+}
 
+uint8_t			TBASE_RemoveEvent(node_t* Node, job_type_t Type, uint32_t DataID) { // TODO: maybe we don't need Node here
+	event_t* CurrentElement = prvTBASE_LIST_HEAD;
+	event_t* TempPointer;
+	job_t* assignedJob;
+	if (prvTBASE_LIST_HEAD == NULL) {
+		return 0;			//TODO: throw error here?
+	}
+	else {
+		while (CurrentElement != NULL) {
+			assignedJob = CurrentElement->AssignedJob;
+			if ((assignedJob->ProcessedNode == Node) && (assignedJob->Type == Type) && (assignedJob->ProcessedData->ID == DataID)) {
+				free(assignedJob);
+				// if head node
+				if (CurrentElement == prvTBASE_LIST_HEAD) {
+					prvTBASE_LIST_HEAD = CurrentElement->NextEvent;
+				}
+
+				// if not last
+				if (CurrentElement->NextEvent != NULL) {
+					CurrentElement->NextEvent->PreviousEvent = CurrentElement->PreviousEvent;
+				}
+
+				// if not head
+				if (CurrentElement->PreviousEvent != NULL) {
+					CurrentElement->PreviousEvent->NextEvent = CurrentElement->NextEvent;
+				}
+
+				free(CurrentElement);
+				return 1;
+			}
+			CurrentElement = CurrentElement->NextEvent;
+		}
+	}
+	return 0;		//TODO: throw error here?
 }
 double TBASE_GetTime(){
 	return prvTBASE_TIME;
